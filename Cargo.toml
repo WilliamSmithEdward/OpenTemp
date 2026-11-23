@@ -3,6 +3,7 @@ name = "opentemp"
 version = "0.1.0"
 edition = "2024"
 description = "OpenTemp: a lightweight, cross-platform hardware monitor (CPU, GPU, memory, storage, network, sensors)."
+license = "MIT"
 readme = "README.md"
 default-run = "opentemp"
 

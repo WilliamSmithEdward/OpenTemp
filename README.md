@@ -187,3 +187,7 @@ Optional `OPENTEMP_SCREENSHOT_THEME=light|dark`.
 - Optional tray icon and alert notifications when a threshold is crossed.
 - Per-process GPU usage on Windows (the PDH data is already collected).
 - CI on all three platforms and signed release builds.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
