@@ -160,6 +160,7 @@ pub fn trim_processes(list: &mut Vec<crate::model::ProcessSample>, n: usize) {
 
 /// x86 CPU brand string and feature flags straight from CPUID.
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+#[allow(unused_unsafe)] // CPUID intrinsics are safe on newer toolchains only.
 pub fn cpuid_info() -> (Option<String>, Option<String>, Vec<String>) {
     #[cfg(target_arch = "x86")]
     use std::arch::x86::{__cpuid, __cpuid_count};
@@ -241,6 +242,7 @@ pub fn cpuid_info() -> (Option<String>, Option<String>, Vec<String>) {
 }
 
 #[cfg(not(any(target_arch = "x86_64", target_arch = "x86")))]
+#[allow(unused_unsafe)] // CPUID intrinsics are safe on newer toolchains only.
 pub fn cpuid_info() -> (Option<String>, Option<String>, Vec<String>) {
     (None, None, Vec::new())
 }

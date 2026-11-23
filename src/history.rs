@@ -9,11 +9,6 @@ pub struct Series {
     pub points: VecDeque<(f64, f32)>,
 }
 
-impl Series {
-    pub fn last(&self) -> Option<f32> {
-        self.points.back().map(|p| p.1)
-    }
-}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Stats {
@@ -209,7 +204,7 @@ mod tests {
         }
         let s = h.get("x").unwrap();
         assert_eq!(s.points.front().unwrap().0, 19.0);
-        assert_eq!(s.last(), Some(29.0));
+        assert_eq!(s.points.back().map(|p| p.1), Some(29.0));
         let st = h.stats("x").unwrap();
         assert_eq!((st.min, st.max), (0.0, 29.0));
         assert!((st.avg() - 14.5).abs() < 1e-9);

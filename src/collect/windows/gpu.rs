@@ -276,11 +276,13 @@ fn pretty_engine(raw: &str) -> String {
         "VideoProcessing" => "Video Processing".into(),
         "LegacyOverlay" => "Overlay".into(),
         "" => "Other".into(),
+        other if other.contains(' ') => other.to_string(),
         other => {
-            // Split CamelCase for unknown engine names.
+            // Split CamelCase ("SecurityEngine"), but keep acronyms ("JPEG") whole.
+            let chars: Vec<char> = other.chars().collect();
             let mut s = String::new();
-            for (i, ch) in other.chars().enumerate() {
-                if i > 0 && ch.is_uppercase() {
+            for (i, &ch) in chars.iter().enumerate() {
+                if i > 0 && ch.is_uppercase() && chars[i - 1].is_lowercase() {
                     s.push(' ');
                 }
                 s.push(ch);
@@ -320,5 +322,7 @@ mod tests {
     fn engine_names_are_readable() {
         assert_eq!(pretty_engine("VideoDecode"), "Video Decode");
         assert_eq!(pretty_engine("SecurityEngine"), "Security Engine");
+        assert_eq!(pretty_engine("Video JPEG 0"), "Video JPEG 0");
+        assert_eq!(pretty_engine("VideoJPEG"), "Video JPEG");
     }
 }

@@ -26,14 +26,26 @@ fn main() -> eframe::Result {
         dump_json();
         return Ok(());
     }
-    ui::run()
+    let mut start_page = None;
+    if let Some(i) = args.iter().position(|a| a == "--page") {
+        let name = args.get(i + 1).map(String::as_str).unwrap_or("");
+        match ui::parse_page(name) {
+            Some(p) => start_page = Some(p),
+            None => {
+                eprintln!("Unknown page {name:?}. Try overview, cpu, memory, gpu, storage, network, sensors, processes or settings.");
+                std::process::exit(2);
+            }
+        }
+    }
+    ui::run(start_page)
 }
 
 fn print_help() {
     println!(
         "{APP_NAME} {} - hardware monitor\n\n\
          USAGE:\n    opentemp [OPTIONS]\n\n\
-         OPTIONS:\n    --json       Print one snapshot of every reading as JSON and exit\n    \
+         OPTIONS:\n    --json         Print one snapshot of every reading as JSON and exit\n    \
+         --page <name>  Open on a page: overview, cpu, memory, gpu, storage, network,\n                   sensors, processes or settings\n    \
          --version    Print the version\n    -h, --help   Print this help",
         env!("CARGO_PKG_VERSION")
     );
