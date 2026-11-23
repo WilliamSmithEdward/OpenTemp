@@ -1,11 +1,13 @@
-//! macOS collector: Mach host statistics, sysctl, getifaddrs, getmntinfo and libproc.
+//! macOS collector: Mach host statistics, sysctl, getifaddrs, getmntinfo,
+//! libproc, and the System Management Controller for temperatures, fans and power.
 //!
-//! Sensors (SMC temperatures, fans), GPU and battery readings need IOKit and are
-//! not implemented yet; the UI explains this through `Snapshot::notes`.
+//! GPU load and battery readings are not implemented yet; the UI explains this
+//! through `Snapshot::notes`.
 
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
 use std::time::Instant;
 
+use super::smc::{self, Smc};
 use super::{Collector, ProcessCpuTracker, RateTracker};
 use crate::model::*;
 
@@ -117,6 +119,7 @@ pub struct MacCollector {
     prev_ticks: Option<Vec<[u64; 4]>>,
     net: RateTracker<(String, bool)>,
     procs: ProcessCpuTracker,
+    smc: Option<SmcSensors>,
     timebase: f64,
     page_size: u64,
     start: Instant,
@@ -162,6 +165,7 @@ impl MacCollector {
             prev_ticks: None,
             net: RateTracker::default(),
             procs: ProcessCpuTracker::default(),
+            smc: SmcSensors::discover(),
             timebase,
             page_size,
             start: Instant::now(),
@@ -401,11 +405,147 @@ impl Collector for MacCollector {
         s.processes = self.processes(now);
         s.system.processes = Some(s.processes.len() as u32);
         s.system.threads = Some(s.processes.iter().map(|p| p.threads).sum());
+        match &self.smc {
+            Some(smc) => {
+                let r = smc.sample();
+                s.cpu.temperature = r.cpu_temp.as_ref().map(|t| t.0);
+                s.cpu.temperature_source = r.cpu_temp.map(|t| t.1);
+                s.cpu.package_power_w = r.cpu_power;
+                s.sensors = r.sensors;
+            }
+            None => s.notes.push(Note::new(
+                "cpu",
+                "The System Management Controller could not be opened, so temperatures and fans are unavailable.",
+            )),
+        }
         s.notes.push(Note::new(
-            "cpu",
-            "Temperatures, fans and per-core clocks on macOS need IOKit/SMC access, which is not implemented yet.",
+            "gpu",
+            "GPU load and memory on macOS are not implemented yet; GPU temperatures appear under Sensors.",
         ));
-        s.notes.push(Note::new("gpu", "GPU monitoring on macOS is not implemented yet."));
         s
+    }
+}
+
+// ------------------------------------------------------------------ SMC
+
+struct SmcKey {
+    name: String,
+    key: u32,
+    data_type: u32,
+    size: u32,
+}
+
+/// The SMC keys this Mac answers, discovered once at start-up.
+struct SmcSensors {
+    smc: Smc,
+    temps: Vec<SmcKey>,
+    power: Vec<SmcKey>,
+    fans: Vec<u32>,
+}
+
+struct SmcReading {
+    sensors: Vec<Sensor>,
+    cpu_temp: Option<(f32, String)>,
+    cpu_power: Option<f32>,
+}
+
+impl SmcSensors {
+    fn discover() -> Option<Self> {
+        let smc = Smc::open()?;
+        let mut temps = Vec::new();
+        let mut power = Vec::new();
+        for key in smc.keys() {
+            let name = smc::fourcc_str(key);
+            let is_temp = name.starts_with('T');
+            let is_power = smc::power_label(&name).is_some();
+            if !is_temp && !is_power {
+                continue;
+            }
+            let Some((data_type, size)) = smc.key_info(key) else { continue };
+            // Keep only keys that decode now; a temperature must also be plausible,
+            // which filters out the many placeholder keys Apple silicon exposes.
+            let Some(v) = smc.read(key, size).and_then(|b| smc::decode(data_type, &b)) else { continue };
+            let k = SmcKey { name, key, data_type, size };
+            if is_temp && smc::plausible_temp(v) {
+                temps.push(k);
+            } else if is_power && v >= 0.0 {
+                power.push(k);
+            }
+        }
+        let fan_count = smc.read_value("FNum").unwrap_or(0.0).clamp(0.0, 8.0) as u32;
+        let fans = (0..fan_count).filter(|i| smc.read_value(&format!("F{i}Ac")).is_some()).collect();
+        Some(Self { smc, temps, power, fans })
+    }
+
+    fn value(&self, k: &SmcKey) -> Option<f64> {
+        smc::decode(k.data_type, &self.smc.read(k.key, k.size)?)
+    }
+
+    fn sample(&self) -> SmcReading {
+        let mut sensors = Vec::new();
+        let mut cpu_die = Vec::new();
+        let mut cpu_any = Vec::new();
+        for k in &self.temps {
+            let Some(v) = self.value(k).filter(|v| smc::plausible_temp(*v)) else { continue };
+            let (category, desc) = smc::temperature_label(&k.name);
+            if category == "CPU" {
+                cpu_any.push(v);
+                if matches!(k.name.as_str(), "TC0D" | "TC0E" | "TC0F" | "TCXC") {
+                    cpu_die.push(v);
+                }
+            }
+            sensors.push(Sensor {
+                id: format!("smc.{}", k.name),
+                group: format!("SMC · {category}"),
+                label: format!("{desc} ({})", k.name),
+                kind: SensorKind::Temperature,
+                value: v,
+                high: None,
+                critical: None,
+            });
+        }
+        let mut cpu_power = None;
+        for k in &self.power {
+            let Some(v) = self.value(k) else { continue };
+            if (k.name == "PCPT" || (k.name == "PCPC" && cpu_power.is_none())) && v > 0.0 {
+                cpu_power = Some(v as f32);
+            }
+            sensors.push(Sensor {
+                id: format!("smc.{}", k.name),
+                group: "SMC · Power".into(),
+                label: format!("{} ({})", smc::power_label(&k.name).unwrap_or("Power"), k.name),
+                kind: SensorKind::Power,
+                value: v,
+                high: None,
+                critical: None,
+            });
+        }
+        for &i in &self.fans {
+            let Some(rpm) = self.smc.read_value(&format!("F{i}Ac")) else { continue };
+            let max = self.smc.read_value(&format!("F{i}Mx")).filter(|m| *m > 0.0);
+            sensors.push(Sensor {
+                id: format!("smc.fan{i}"),
+                group: "SMC · Fans".into(),
+                label: match max {
+                    Some(m) => format!("Fan {} (max {m:.0} RPM)", i + 1),
+                    None => format!("Fan {}", i + 1),
+                },
+                kind: SensorKind::Fan,
+                value: rpm.max(0.0),
+                high: None,
+                critical: None,
+            });
+        }
+        // Intel Macs have a die sensor; Apple silicon has many per-cluster
+        // sensors, which are averaged the way most Mac tools report "CPU".
+        let cpu_temp = if !cpu_die.is_empty() {
+            Some((cpu_die.iter().copied().fold(f64::MIN, f64::max) as f32, "SMC · CPU die".to_string()))
+        } else if !cpu_any.is_empty() {
+            let avg = cpu_any.iter().sum::<f64>() / cpu_any.len() as f64;
+            Some((avg as f32, format!("SMC · average of {} CPU sensors", cpu_any.len())))
+        } else {
+            None
+        };
+        SmcReading { sensors, cpu_temp, cpu_power }
     }
 }

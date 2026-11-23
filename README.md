@@ -42,14 +42,15 @@ preview quality until they have been.
 | | Windows 10/11 | Linux | macOS |
 |---|---|---|---|
 | CPU load, per-thread clocks | PDH counters | `/proc/stat`, cpufreq | Mach host stats (no clocks) |
-| CPU temperature | ACPI thermal zones only¹ | hwmon (k10temp, coretemp, zenpower…) | not yet² |
-| CPU package power | RAPL energy meter counters | hwmon where exposed | not yet² |
+| CPU temperature | ACPI thermal zones only¹ | hwmon (k10temp, coretemp, zenpower…) | SMC (die sensor on Intel, cluster average on Apple silicon)³ |
+| CPU package power | RAPL energy meter counters | hwmon where exposed | SMC on Intel³; Apple silicon lists system total power under Sensors |
 | GPU load and memory | PDH GPU counters, any WDDM 2.x GPU | amdgpu / i915 sysfs | not yet² |
-| GPU temperature and clocks | D3DKMT performance data | amdgpu hwmon, DPM tables | not yet² |
+| GPU temperature and clocks | D3DKMT performance data | amdgpu hwmon, DPM tables | GPU temperatures via SMC³; clocks not yet² |
 | NVIDIA details | NVML (loaded at runtime) | NVML (loaded at runtime) | n/a |
 | Disk throughput | PDH LogicalDisk | `/proc/diskstats` | not yet² |
-| Drive temperatures | storage driver health log, no admin | hwmon (nvme, drivetemp) | not yet² |
+| Drive temperatures | storage driver health log, no admin | hwmon (nvme, drivetemp) | SMC³ (Mac models that report it) |
 | NVMe health (wear, hours, errors) | storage driver health log, no admin | not yet | not yet² |
+| Fans | not available without a driver | hwmon | SMC³ (RPM and maximum) |
 | Network | IP Helper (64-bit counters) | `/proc/net/dev`, sysfs | `getifaddrs` |
 | Processes | `NtQuerySystemInformation` | `/proc/<pid>` | libproc |
 | Battery | `GetSystemPowerStatus` | `power_supply` | not yet² |
@@ -59,7 +60,12 @@ LibreHardwareMonitor and HWiNFO use). OpenTemp deliberately ships none: such
 drivers run with full kernel privileges and some have been used as attack
 vectors. Package power, clocks, GPU and drive temperatures are still available.
 
-² Needs IOKit / SMC access. This is the main gap on macOS.
+² Needs further IOKit work (GPU statistics, IOReport, the battery registry).
+
+³ Read from the System Management Controller through IOKit, no root needed.
+   Keys are discovered at start-up, so each Mac model shows what it actually
+   reports; temperature keys reading outside 5–130 °C are ignored as
+   placeholders. Not yet verified on real Macs.
 
 ## Build and run
 
@@ -123,7 +129,8 @@ src/
     windows/         PDH, DXGI + D3DKMT, IP Helper, storage IOCTLs, NT process list
     linux.rs         /proc and /sys
     linux_parse.rs   pure parsers for /proc formats (tested on every platform)
-    macos.rs         Mach, sysctl, getifaddrs, getmntinfo, libproc
+    macos.rs         Mach, sysctl, getifaddrs, getmntinfo, libproc, SMC sensors
+    smc.rs           SMC client (IOKit) and value decoding / key labelling
     nvml.rs          NVIDIA NVML, loaded dynamically
     nvme.rs          NVMe SMART/health log decoder
   ui/
@@ -175,7 +182,7 @@ Optional `OPENTEMP_SCREENSHOT_THEME=light|dark`.
 
 ## Roadmap
 
-- macOS: SMC temperatures and fans, battery, Apple GPU via IOKit.
+- macOS: battery, GPU load and clocks, disk throughput via IOKit.
 - Run and tune the Linux and macOS backends on real hardware.
 - Optional tray icon and alert notifications when a threshold is crossed.
 - Per-process GPU usage on Windows (the PDH data is already collected).

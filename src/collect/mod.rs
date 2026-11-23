@@ -10,6 +10,7 @@ use crate::model::{Snapshot, StaticInfo};
 pub mod linux_parse;
 pub mod nvme;
 pub mod nvml;
+pub mod smc;
 
 #[cfg(target_os = "linux")]
 mod linux;
