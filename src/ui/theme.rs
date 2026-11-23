@@ -76,7 +76,6 @@ pub fn palette(ui: &egui::Ui) -> &'static Palette {
     if ui.visuals().dark_mode { &DARK } else { &LIGHT }
 }
 
-
 /// Severity of a reading, used for colour *and* an accompanying text label.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Level {

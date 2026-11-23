@@ -48,7 +48,8 @@ impl Sampler {
         let stop = Arc::new(AtomicBool::new(false));
         let log_path: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
 
-        let (sh, iv, pa, st, lp) = (shared.clone(), interval_ms.clone(), paused.clone(), stop.clone(), log_path.clone());
+        let (sh, iv, pa, st, lp) =
+            (shared.clone(), interval_ms.clone(), paused.clone(), stop.clone(), log_path.clone());
         let handle = std::thread::Builder::new()
             .name("opentemp-sampler".into())
             .spawn(move || {

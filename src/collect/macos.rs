@@ -68,7 +68,13 @@ struct TimebaseInfo {
 unsafe extern "C" {
     static mach_task_self_: MachPort;
     fn mach_host_self() -> MachPort;
-    fn host_processor_info(host: MachPort, flavor: c_int, count: *mut u32, info: *mut *mut c_int, info_count: *mut u32) -> KernReturn;
+    fn host_processor_info(
+        host: MachPort,
+        flavor: c_int,
+        count: *mut u32,
+        info: *mut *mut c_int,
+        info_count: *mut u32,
+    ) -> KernReturn;
     fn host_statistics64(host: MachPort, flavor: c_int, info: *mut c_int, count: *mut u32) -> KernReturn;
     fn vm_deallocate(task: MachPort, address: usize, size: usize) -> KernReturn;
     fn mach_timebase_info(info: *mut TimebaseInfo) -> KernReturn;
@@ -127,8 +133,11 @@ impl MacCollector {
             hostname: sysctl_string("kern.hostname").unwrap_or_default(),
             arch: std::env::consts::ARCH.into(),
             cpu: CpuInfo {
-                model: sysctl_string("machdep.cpu.brand_string").or(brand).unwrap_or_else(|| "Unknown processor".into()),
-                vendor: vendor.unwrap_or_else(|| if cfg!(target_arch = "aarch64") { "Apple".into() } else { String::new() }),
+                model: sysctl_string("machdep.cpu.brand_string")
+                    .or(brand)
+                    .unwrap_or_else(|| "Unknown processor".into()),
+                vendor: vendor
+                    .unwrap_or_else(|| if cfg!(target_arch = "aarch64") { "Apple".into() } else { String::new() }),
                 physical_cores: sysctl_u64("hw.physicalcpu").unwrap_or(logical as u64) as usize,
                 logical_cores: logical,
                 sockets: sysctl_u64("hw.packages").unwrap_or(1) as usize,
@@ -162,16 +171,27 @@ impl MacCollector {
     fn cpu_ticks() -> Option<Vec<[u64; 4]>> {
         let (mut count, mut info, mut info_count) = (0u32, std::ptr::null_mut::<c_int>(), 0u32);
         // SAFETY: out-pointers are valid; we free the returned array below.
-        let kr = unsafe { host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &mut count, &mut info, &mut info_count) };
+        let kr = unsafe {
+            host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &mut count, &mut info, &mut info_count)
+        };
         if kr != 0 || info.is_null() {
             return None;
         }
         // SAFETY: `info` holds `info_count` integers, 4 per CPU.
         let raw = unsafe { std::slice::from_raw_parts(info, info_count as usize) };
         let v = raw
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .take(count as usize)
-            .map(|c| [c[CPU_STATE_USER] as u32 as u64, c[CPU_STATE_SYSTEM] as u32 as u64, c[CPU_STATE_IDLE] as u32 as u64, c[CPU_STATE_NICE] as u32 as u64])
+            .map(|c| {
+                [
+                    c[CPU_STATE_USER] as u32 as u64,
+                    c[CPU_STATE_SYSTEM] as u32 as u64,
+                    c[CPU_STATE_IDLE] as u32 as u64,
+                    c[CPU_STATE_NICE] as u32 as u64,
+                ]
+            })
             .collect();
         // SAFETY: freeing the kernel-allocated array.
         unsafe { vm_deallocate(mach_task_self_, info as usize, info_count as usize * size_of::<c_int>()) };
@@ -183,7 +203,10 @@ impl MacCollector {
         let mut vm = VmStatistics64::default();
         let mut count = (size_of::<VmStatistics64>() / size_of::<c_int>()) as u32;
         // SAFETY: buffer and count describe `vm`.
-        if unsafe { host_statistics64(mach_host_self(), HOST_VM_INFO64, (&mut vm as *mut VmStatistics64).cast(), &mut count) } == 0 {
+        if unsafe {
+            host_statistics64(mach_host_self(), HOST_VM_INFO64, (&mut vm as *mut VmStatistics64).cast(), &mut count)
+        } == 0
+        {
             let p = self.page_size;
             // Activity Monitor's "Memory Used": app memory + wired + compressed.
             let app = (vm.internal_page_count as u64).saturating_sub(vm.purgeable_count as u64);
@@ -223,7 +246,10 @@ impl MacCollector {
             let family = unsafe { (*ifa.ifa_addr).sa_family } as c_int;
             if family == libc::AF_INET {
                 let sin = unsafe { &*(ifa.ifa_addr as *const libc::sockaddr_in) };
-                addrs.entry(name.clone()).or_default().push(std::net::Ipv4Addr::from(u32::from_be(sin.sin_addr.s_addr)).to_string());
+                addrs
+                    .entry(name.clone())
+                    .or_default()
+                    .push(std::net::Ipv4Addr::from(u32::from_be(sin.sin_addr.s_addr)).to_string());
             } else if family == libc::AF_LINK && !ifa.ifa_data.is_null() {
                 // SAFETY: for AF_LINK entries ifa_data points to `if_data`.
                 let d = unsafe { &*(ifa.ifa_data as *const libc::if_data) };
@@ -275,7 +301,11 @@ impl MacCollector {
                 let total = m.f_blocks * m.f_bsize as u64;
                 (total > 0).then(|| DiskSample {
                     key: mnt.clone(),
-                    name: if mnt == "/" { "Macintosh HD".into() } else { mnt.trim_start_matches("/Volumes/").to_string() },
+                    name: if mnt == "/" {
+                        "Macintosh HD".into()
+                    } else {
+                        mnt.trim_start_matches("/Volumes/").to_string()
+                    },
                     mount: mnt.clone(),
                     fs,
                     total,
@@ -302,7 +332,10 @@ impl MacCollector {
             let mut ti: libc::proc_taskinfo = unsafe { std::mem::zeroed() };
             let size = size_of::<libc::proc_taskinfo>() as c_int;
             // SAFETY: buffer is a proc_taskinfo of `size` bytes.
-            if unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDTASKINFO, 0, (&mut ti as *mut libc::proc_taskinfo).cast(), size) } != size {
+            if unsafe {
+                libc::proc_pidinfo(pid, libc::PROC_PIDTASKINFO, 0, (&mut ti as *mut libc::proc_taskinfo).cast(), size)
+            } != size
+            {
                 continue;
             }
             let mut name = [0 as c_char; 256];
@@ -341,9 +374,11 @@ impl Collector for MacCollector {
                     let total: u64 = d.iter().sum();
                     if total == 0 { 0.0 } else { ((total - d[CPU_STATE_IDLE]) as f64 / total as f64 * 100.0) as f32 }
                 };
-                s.cpu.per_core = ticks.iter().zip(prev).map(|(c, p)| CoreSample { usage: usage(c, p), mhz: None }).collect();
+                s.cpu.per_core =
+                    ticks.iter().zip(prev).map(|(c, p)| CoreSample { usage: usage(c, p), mhz: None }).collect();
                 if !s.cpu.per_core.is_empty() {
-                    s.cpu.usage = Some(s.cpu.per_core.iter().map(|c| c.usage).sum::<f32>() / s.cpu.per_core.len() as f32);
+                    s.cpu.usage =
+                        Some(s.cpu.per_core.iter().map(|c| c.usage).sum::<f32>() / s.cpu.per_core.len() as f32);
                 }
             }
             self.prev_ticks = Some(ticks);
@@ -356,7 +391,8 @@ impl Collector for MacCollector {
         let mut tv = libc::timeval { tv_sec: 0, tv_usec: 0 };
         let mut len = size_of::<libc::timeval>();
         if sysctl_raw("kern.boottime", (&mut tv as *mut libc::timeval).cast(), &mut len) {
-            let now_s = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            let now_s =
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
             s.system.uptime_secs = Some(now_s.saturating_sub(tv.tv_sec as u64));
         }
         s.memory = self.memory();
@@ -365,7 +401,10 @@ impl Collector for MacCollector {
         s.processes = self.processes(now);
         s.system.processes = Some(s.processes.len() as u32);
         s.system.threads = Some(s.processes.iter().map(|p| p.threads).sum());
-        s.notes.push(Note::new("cpu", "Temperatures, fans and per-core clocks on macOS need IOKit/SMC access, which is not implemented yet."));
+        s.notes.push(Note::new(
+            "cpu",
+            "Temperatures, fans and per-core clocks on macOS need IOKit/SMC access, which is not implemented yet.",
+        ));
         s.notes.push(Note::new("gpu", "GPU monitoring on macOS is not implemented yet."));
         s
     }

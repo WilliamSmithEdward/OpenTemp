@@ -123,7 +123,8 @@ impl Disks {
                 high,
                 critical,
             };
-            let mut h = DriveHealth { key: format!("PhysicalDrive{}", d.index), model: d.model.clone(), ..Default::default() };
+            let mut h =
+                DriveHealth { key: format!("PhysicalDrive{}", d.index), model: d.model.clone(), ..Default::default() };
             if let Some(n) = nvme_health_log(d.handle).and_then(|log| nvme::parse_health_log(&log)) {
                 h.temperature = n.composite_c;
                 h.life_used_pct = Some(n.life_used_pct);
@@ -253,8 +254,11 @@ fn open_physical_drives() -> Vec<PhysicalDrive> {
 }
 
 fn device_model(handle: HANDLE) -> Option<String> {
-    let mut query =
-        STORAGE_PROPERTY_QUERY { PropertyId: StorageDeviceProperty, QueryType: PropertyStandardQuery, ..Default::default() };
+    let mut query = STORAGE_PROPERTY_QUERY {
+        PropertyId: StorageDeviceProperty,
+        QueryType: PropertyStandardQuery,
+        ..Default::default()
+    };
     let mut buf = [0u64; 128];
     let mut got = 0u32;
     // SAFETY: buffers sized correctly.

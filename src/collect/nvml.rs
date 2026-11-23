@@ -128,9 +128,17 @@ impl Nvml {
                     continue;
                 }
                 let mut buf = [0 as c_char; 96];
-                let name = if (api.name)(d, buf.as_mut_ptr(), buf.len() as c_uint) == 0 { cstr(&buf) } else { format!("NVIDIA GPU {i}") };
+                let name = if (api.name)(d, buf.as_mut_ptr(), buf.len() as c_uint) == 0 {
+                    cstr(&buf)
+                } else {
+                    format!("NVIDIA GPU {i}")
+                };
                 let mut ubuf = [0 as c_char; 96];
-                let uuid = if (api.uuid)(d, ubuf.as_mut_ptr(), ubuf.len() as c_uint) == 0 { cstr(&ubuf) } else { format!("nvml{i}") };
+                let uuid = if (api.uuid)(d, ubuf.as_mut_ptr(), ubuf.len() as c_uint) == 0 {
+                    cstr(&ubuf)
+                } else {
+                    format!("nvml{i}")
+                };
                 devices.push((d, name, uuid));
             }
             let mut dbuf = [0 as c_char; 96];

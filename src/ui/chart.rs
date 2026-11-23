@@ -82,7 +82,9 @@ impl Chart<'_> {
         let has_data = vmin.is_finite();
         let (lo, hi) = match self.scale {
             Scale::Fixed(a, b) => (a, b),
-            Scale::AutoFromZero { min_span } => (0.0, nice_ceiling(if has_data { vmax.max(min_span) } else { min_span })),
+            Scale::AutoFromZero { min_span } => {
+                (0.0, nice_ceiling(if has_data { vmax.max(min_span) } else { min_span }))
+            }
             Scale::AutoPadded { min_span } => {
                 if !has_data {
                     (0.0, min_span)
@@ -107,21 +109,40 @@ impl Chart<'_> {
             let y = plot.bottom() - plot.height() * i as f32 / 4.0;
             let stroke = if i == 0 { Stroke::new(1.0, p.baseline) } else { Stroke::new(1.0, p.grid) };
             painter.line_segment([pos2(plot.left(), y), pos2(plot.right(), y)], stroke);
-            painter.text(pos2(plot.right() + 6.0, y), Align2::LEFT_CENTER, (self.fmt)(v), label_font.clone(), p.text_muted);
+            painter.text(
+                pos2(plot.right() + 6.0, y),
+                Align2::LEFT_CENTER,
+                (self.fmt)(v),
+                label_font.clone(),
+                p.text_muted,
+            );
         }
         // Time labels.
-        painter.text(plot.left_bottom() + vec2(0.0, 4.0), Align2::LEFT_TOP, time_ago(self.window_secs), label_font.clone(), p.text_muted);
+        painter.text(
+            plot.left_bottom() + vec2(0.0, 4.0),
+            Align2::LEFT_TOP,
+            time_ago(self.window_secs),
+            label_font.clone(),
+            p.text_muted,
+        );
         painter.text(plot.right_bottom() + vec2(0.0, 4.0), Align2::RIGHT_TOP, "now", label_font.clone(), p.text_muted);
 
         if !has_data {
-            painter.text(plot.center(), Align2::CENTER_CENTER, "Collecting data…", FontId::proportional(12.5), p.text_muted);
+            painter.text(
+                plot.center(),
+                Align2::CENTER_CENTER,
+                "Collecting data…",
+                FontId::proportional(12.5),
+                p.text_muted,
+            );
             return resp;
         }
 
         // Series.
         for l in &self.lines {
             let Some(s) = l.series else { continue };
-            let pts: Vec<Pos2> = s.points.iter().filter(|p| p.0 >= t0 - 1.0).map(|&(t, v)| to_screen(t, v as f64)).collect();
+            let pts: Vec<Pos2> =
+                s.points.iter().filter(|p| p.0 >= t0 - 1.0).map(|&(t, v)| to_screen(t, v as f64)).collect();
             if pts.len() < 2 {
                 if let Some(&pt) = pts.first() {
                     painter.circle_filled(pt, 2.5, l.color);
@@ -163,7 +184,15 @@ impl Chart<'_> {
             if let Some(first) = rows.first() {
                 let ago = (self.now - first.3).max(0.0);
                 resp.clone().on_hover_ui_at_pointer(|ui| {
-                    ui.label(egui::RichText::new(if ago < 1.5 { "now".to_string() } else { format!("{} ago", short_secs(ago)) }).small().color(p.text_muted));
+                    ui.label(
+                        egui::RichText::new(if ago < 1.5 {
+                            "now".to_string()
+                        } else {
+                            format!("{} ago", short_secs(ago))
+                        })
+                        .small()
+                        .color(p.text_muted),
+                    );
                     for (name, color, value, _) in &rows {
                         ui.horizontal(|ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
@@ -189,7 +218,15 @@ fn time_ago(window: f64) -> String {
 }
 
 /// A compact sparkline for cards and table rows (no axes, no hover).
-pub fn sparkline(ui: &mut Ui, series: Option<&Series>, size: Vec2, color: Color32, range: Option<(f64, f64)>, window: f64, now: f64) {
+pub fn sparkline(
+    ui: &mut Ui,
+    series: Option<&Series>,
+    size: Vec2,
+    color: Color32,
+    range: Option<(f64, f64)>,
+    window: f64,
+    now: f64,
+) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let Some(s) = series else { return };
     let t0 = now - window;

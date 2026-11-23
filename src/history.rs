@@ -9,7 +9,6 @@ pub struct Series {
     pub points: VecDeque<(f64, f32)>,
 }
 
-
 #[derive(Clone, Copy, Debug)]
 pub struct Stats {
     pub min: f64,
@@ -98,10 +97,10 @@ impl History {
             self.push("mem.used_pct", t, s.memory.used_pct() as f64);
             self.push("mem.used", t, s.memory.used as f64);
         }
-        if let (Some(u), Some(tot)) = (s.memory.swap_used, s.memory.swap_total) {
-            if tot > 0 {
-                self.push("mem.swap_pct", t, u as f64 / tot as f64 * 100.0);
-            }
+        if let (Some(u), Some(tot)) = (s.memory.swap_used, s.memory.swap_total)
+            && tot > 0
+        {
+            self.push("mem.swap_pct", t, u as f64 / tot as f64 * 100.0);
         }
         for g in &s.gpus {
             let k = &g.key;
@@ -150,10 +149,10 @@ impl History {
         for sensor in &s.sensors {
             self.push(format!("sensor.{}", sensor.id), t, sensor.value);
         }
-        if let Some(b) = &s.battery {
-            if let Some(p) = b.percent {
-                self.push("battery.pct", t, p as f64);
-            }
+        if let Some(b) = &s.battery
+            && let Some(p) = b.percent
+        {
+            self.push("battery.pct", t, p as f64);
         }
         self.prune(t);
     }
@@ -166,7 +165,15 @@ pub fn derive_sensors(s: &mut Snapshot) {
     let mut extra = Vec::new();
     let mut add = |id: String, group: &str, label: &str, kind: SensorKind, value: Option<f64>| {
         if let Some(value) = value {
-            extra.push(Sensor { id, group: group.to_string(), label: label.to_string(), kind, value, high: None, critical: None });
+            extra.push(Sensor {
+                id,
+                group: group.to_string(),
+                label: label.to_string(),
+                kind,
+                value,
+                high: None,
+                critical: None,
+            });
         }
     };
     if !s.cpu.per_core.is_empty() {

@@ -77,9 +77,8 @@ impl Processes {
                     String::new()
                 } else {
                     // SAFETY: Length is in bytes and the buffer lives inside our allocation.
-                    let s = unsafe {
-                        std::slice::from_raw_parts(p.ImageName.Buffer.0, p.ImageName.Length as usize / 2)
-                    };
+                    let s =
+                        unsafe { std::slice::from_raw_parts(p.ImageName.Buffer.0, p.ImageName.Length as usize / 2) };
                     String::from_utf16_lossy(s)
                 };
                 let cpu_pct = self.cpu.percent(pid, create, cpu_100ns as f64 / 1e7, logical_cpus);

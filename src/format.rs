@@ -12,9 +12,7 @@ pub fn bytes(b: f64) -> String {
         v /= 1024.0;
         i += 1;
     }
-    if i == 0 {
-        format!("{v:.0} {}", UNITS[i])
-    } else if v >= 100.0 {
+    if i == 0 || v >= 100.0 {
         format!("{v:.0} {}", UNITS[i])
     } else if v >= 10.0 {
         format!("{v:.1} {}", UNITS[i])
@@ -100,7 +98,7 @@ pub fn count(n: u64) -> String {
     let s = n.to_string();
     let mut out = String::new();
     for (i, ch) in s.chars().enumerate() {
-        if i > 0 && (s.len() - i) % 3 == 0 {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
             out.push(',');
         }
         out.push(ch);

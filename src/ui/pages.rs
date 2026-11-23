@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)] // UI cards are built as boxed closures.
 //! Page bodies. Each page is a pure function of the latest snapshot, the
 //! history and the settings; navigation requests are returned to the shell.
 
@@ -37,7 +38,13 @@ impl View<'_> {
     fn window(&self) -> f64 {
         self.h.window_secs
     }
-    fn chart<'a>(&'a self, lines: Vec<Line<'a>>, scale: Scale, height: f32, fmt: &'a dyn Fn(f64) -> String) -> Chart<'a> {
+    fn chart<'a>(
+        &'a self,
+        lines: Vec<Line<'a>>,
+        scale: Scale,
+        height: f32,
+        fmt: &'a dyn Fn(f64) -> String,
+    ) -> Chart<'a> {
         Chart { lines, scale, height, window_secs: self.window(), now: self.now, fmt, fill: true }
     }
     fn notes(&self, ui: &mut Ui, area: &str) {
@@ -80,18 +87,43 @@ fn overview(ui: &mut Ui, v: &View) -> Option<Page> {
             card_header(ui, Icon::Cpu, "Processor", Some(&v.info.cpu.model));
             ui.horizontal(|ui| {
                 let u = s.cpu.usage.unwrap_or(0.0);
-                ring_gauge(ui, s.cpu.usage.map(|u| u / 100.0), 108.0, Level::for_load(u).bar(p), &f::percent(u), "utilization");
+                ring_gauge(
+                    ui,
+                    s.cpu.usage.map(|u| u / 100.0),
+                    108.0,
+                    Level::for_load(u).bar(p),
+                    &f::percent(u),
+                    "utilization",
+                );
                 ui.add_space(8.0);
                 ui.vertical(|ui| {
                     stat(ui, "Effective clock", &s.cpu.avg_mhz.map(f::mhz).unwrap_or_else(|| "—".into()), None);
                     match s.cpu.temperature {
                         Some(t) => stat(ui, "Temperature", &v.temp(t), Some(v.temp_level(t))),
-                        None => stat(ui, "Package power", &s.cpu.package_power_w.map(f::watts).unwrap_or_else(|| "—".into()), None),
+                        None => stat(
+                            ui,
+                            "Package power",
+                            &s.cpu.package_power_w.map(f::watts).unwrap_or_else(|| "—".into()),
+                            None,
+                        ),
                     }
-                    stat(ui, "Cores / threads", &format!("{} / {}", v.info.cpu.physical_cores, v.info.cpu.logical_cores), None);
+                    stat(
+                        ui,
+                        "Cores / threads",
+                        &format!("{} / {}", v.info.cpu.physical_cores, v.info.cpu.logical_cores),
+                        None,
+                    );
                 });
             });
-            sparkline(ui, v.h.get("cpu.usage"), vec2(ui.available_width(), 36.0), p.series[0], Some((0.0, 100.0)), v.window().min(60.0), v.now);
+            sparkline(
+                ui,
+                v.h.get("cpu.usage"),
+                vec2(ui.available_width(), 36.0),
+                p.series[0],
+                Some((0.0, 100.0)),
+                v.window().min(60.0),
+                v.now,
+            );
         });
         r.clicked().then_some(Page::Cpu)
     }));
@@ -108,11 +140,24 @@ fn overview(ui: &mut Ui, v: &View) -> Option<Page> {
                     stat(ui, "In use", &f::bytes_u(m.used), None);
                     stat(ui, "Available", &f::bytes_u(m.available), None);
                     if let (Some(u), Some(t)) = (m.swap_used, m.swap_total) {
-                        stat(ui, if cfg!(windows) { "Page file" } else { "Swap" }, &format!("{} / {}", f::bytes_u(u), f::bytes_u(t)), None);
+                        stat(
+                            ui,
+                            if cfg!(windows) { "Page file" } else { "Swap" },
+                            &format!("{} / {}", f::bytes_u(u), f::bytes_u(t)),
+                            None,
+                        );
                     }
                 });
             });
-            sparkline(ui, v.h.get("mem.used_pct"), vec2(ui.available_width(), 36.0), p.series[0], Some((0.0, 100.0)), v.window().min(60.0), v.now);
+            sparkline(
+                ui,
+                v.h.get("mem.used_pct"),
+                vec2(ui.available_width(), 36.0),
+                p.series[0],
+                Some((0.0, 100.0)),
+                v.window().min(60.0),
+                v.now,
+            );
         });
         r.clicked().then_some(Page::Memory)
     }));
@@ -123,7 +168,14 @@ fn overview(ui: &mut Ui, v: &View) -> Option<Page> {
                 card_header(ui, Icon::Gpu, "Graphics", Some(&g.name));
                 ui.horizontal(|ui| {
                     let u = g.usage.unwrap_or(0.0);
-                    ring_gauge(ui, g.usage.map(|u| u / 100.0), 108.0, Level::for_load(u).bar(p), &g.usage.map(f::percent).unwrap_or("—".into()), "utilization");
+                    ring_gauge(
+                        ui,
+                        g.usage.map(|u| u / 100.0),
+                        108.0,
+                        Level::for_load(u).bar(p),
+                        &g.usage.map(f::percent).unwrap_or("—".into()),
+                        "utilization",
+                    );
                     ui.add_space(8.0);
                     ui.vertical(|ui| {
                         match g.temperature {
@@ -139,7 +191,15 @@ fn overview(ui: &mut Ui, v: &View) -> Option<Page> {
                         stat(ui, if g.integrated { "Reserved memory" } else { "Video memory" }, &mem, None);
                     });
                 });
-                sparkline(ui, v.h.get(&format!("gpu.{}.usage", g.key)), vec2(ui.available_width(), 36.0), p.series[0], Some((0.0, 100.0)), v.window().min(60.0), v.now);
+                sparkline(
+                    ui,
+                    v.h.get(&format!("gpu.{}.usage", g.key)),
+                    vec2(ui.available_width(), 36.0),
+                    p.series[0],
+                    Some((0.0, 100.0)),
+                    v.window().min(60.0),
+                    v.now,
+                );
             });
             r.clicked().then_some(Page::Gpu)
         }));
@@ -176,7 +236,12 @@ fn overview(ui: &mut Ui, v: &View) -> Option<Page> {
 
     cards.push(Box::new(|ui| {
         let r = link_card(ui, "ov-disk", "Open storage details", |ui| {
-            card_header(ui, Icon::Storage, "Storage", Some(&format!("{} volume{}", s.disks.len(), if s.disks.len() == 1 { "" } else { "s" })));
+            card_header(
+                ui,
+                Icon::Storage,
+                "Storage",
+                Some(&format!("{} volume{}", s.disks.len(), if s.disks.len() == 1 { "" } else { "s" })),
+            );
             if s.disks.is_empty() {
                 ui.label(RichText::new("No volumes found").color(p.text_muted));
             }
@@ -191,7 +256,11 @@ fn overview(ui: &mut Ui, v: &View) -> Option<Page> {
                 });
                 meter(ui, frac, capacity_level(frac).bar(p), 8.0);
                 if let (Some(r), Some(w)) = (d.read_bps, d.write_bps) {
-                    ui.label(RichText::new(format!("Read {}  ·  Write {}", f::byte_rate(r), f::byte_rate(w))).small().color(p.text_secondary));
+                    ui.label(
+                        RichText::new(format!("Read {}  ·  Write {}", f::byte_rate(r), f::byte_rate(w)))
+                            .small()
+                            .color(p.text_secondary),
+                    );
                 }
                 ui.add_space(4.0);
             }
@@ -223,7 +292,13 @@ fn overview(ui: &mut Ui, v: &View) -> Option<Page> {
             }
             if let Some(b) = &s.battery {
                 let pct = b.percent.map(|p| format!("{p:.0}%")).unwrap_or_else(|| "—".into());
-                let state = if b.charging { "charging" } else if b.on_ac { "plugged in" } else { "on battery" };
+                let state = if b.charging {
+                    "charging"
+                } else if b.on_ac {
+                    "plugged in"
+                } else {
+                    "on battery"
+                };
                 rows.push(("Battery", format!("{pct}, {state}")));
             }
             kv_grid(ui, "ov-sys", &rows);
@@ -289,7 +364,13 @@ fn cpu(ui: &mut Ui, v: &View) {
 
     card(ui, |ui| {
         card_header(ui, Icon::Cpu, "Utilization", Some(&info.model));
-        v.chart(vec![Line { name: "Utilization", series: v.h.get("cpu.usage"), color: p.series[0] }], Scale::Fixed(0.0, 100.0), 180.0, &pct_fmt).show(ui);
+        v.chart(
+            vec![Line { name: "Utilization", series: v.h.get("cpu.usage"), color: p.series[0] }],
+            Scale::Fixed(0.0, 100.0),
+            180.0,
+            &pct_fmt,
+        )
+        .show(ui);
     });
     ui.add_space(12.0);
 
@@ -297,7 +378,8 @@ fn cpu(ui: &mut Ui, v: &View) {
     let w_fmt = |x: f64| format!("{x:.0} W");
     let unit = v.settings.temp_unit;
     let t_fmt = move |x: f64| f::temp(x as f32, unit);
-    let mut panels: Vec<(&str, &str, &dyn Fn(f64) -> String, Scale)> = vec![("Effective clock", "cpu.mhz", &mhz_fmt, Scale::AutoPadded { min_span: 500.0 })];
+    let mut panels: Vec<(&str, &str, &dyn Fn(f64) -> String, Scale)> =
+        vec![("Effective clock", "cpu.mhz", &mhz_fmt, Scale::AutoPadded { min_span: 500.0 })];
     if v.h.get("cpu.power").is_some() {
         panels.push(("Package power", "cpu.power", &w_fmt, Scale::AutoFromZero { min_span: 10.0 }));
     }
@@ -321,31 +403,59 @@ fn cpu(ui: &mut Ui, v: &View) {
         let hybrid = classes.iter().flatten().collect::<std::collections::BTreeSet<_>>().len() > 1;
         card_header(ui, Icon::Cpu, "Logical processors", Some(&format!("{} threads", s.cpu.per_core.len())));
         if hybrid {
-            ui.label(RichText::new("This processor mixes core types. P marks the higher-performance class, E the more efficient one.").small().color(p.text_muted));
+            ui.label(
+                RichText::new(
+                    "This processor mixes core types. P marks the higher-performance class, E the more efficient one.",
+                )
+                .small()
+                .color(p.text_muted),
+            );
             ui.add_space(6.0);
         }
         responsive_columns(ui, s.cpu.per_core.len(), 118.0, |ui, i| {
             let c = &s.cpu.per_core[i];
-            let tag = classes.get(i).copied().flatten().filter(|_| hybrid).map(|cl| if Some(cl) == top_class { "P" } else { "E" });
-            egui::Frame::new().fill(p.surface_raised).stroke(egui::Stroke::new(1.0, p.border)).corner_radius(8).inner_margin(10).show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("CPU {i}")).small().color(p.text_muted));
-                    if let Some(t) = tag {
-                        ui.label(RichText::new(t).small().strong().color(p.accent)).on_hover_text(if t == "P" { "Performance core" } else { "Efficiency core" });
-                    }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(RichText::new(f::percent(c.usage)).strong().color(p.text));
+            let tag = classes
+                .get(i)
+                .copied()
+                .flatten()
+                .filter(|_| hybrid)
+                .map(|cl| if Some(cl) == top_class { "P" } else { "E" });
+            egui::Frame::new()
+                .fill(p.surface_raised)
+                .stroke(egui::Stroke::new(1.0, p.border))
+                .corner_radius(8)
+                .inner_margin(10)
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("CPU {i}")).small().color(p.text_muted));
+                        if let Some(t) = tag {
+                            ui.label(RichText::new(t).small().strong().color(p.accent)).on_hover_text(if t == "P" {
+                                "Performance core"
+                            } else {
+                                "Efficiency core"
+                            });
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(RichText::new(f::percent(c.usage)).strong().color(p.text));
+                        });
                     });
-                });
-                meter(ui, c.usage / 100.0, Level::for_load(c.usage).bar(p), 6.0);
-                if v.settings.show_per_core_clock {
-                    if let Some(m) = c.mhz {
+                    meter(ui, c.usage / 100.0, Level::for_load(c.usage).bar(p), 6.0);
+                    if v.settings.show_per_core_clock
+                        && let Some(m) = c.mhz
+                    {
                         ui.label(RichText::new(f::mhz(m)).small().color(p.text_secondary));
                     }
-                }
-                sparkline(ui, v.h.get(&format!("cpu.core{i}")), vec2(ui.available_width(), 22.0), p.series[0], Some((0.0, 100.0)), v.window().min(120.0), v.now);
-            });
+                    sparkline(
+                        ui,
+                        v.h.get(&format!("cpu.core{i}")),
+                        vec2(ui.available_width(), 22.0),
+                        p.series[0],
+                        Some((0.0, 100.0)),
+                        v.window().min(120.0),
+                        v.now,
+                    );
+                });
         });
     });
 
@@ -395,7 +505,11 @@ fn memory(ui: &mut Ui, v: &View) {
         stats.push(("Committed", format!("{} / {}", f::bytes_u(c), f::bytes_u(l)), None));
     }
     if let (Some(u), Some(t)) = (m.swap_used, m.swap_total) {
-        stats.push((if cfg!(windows) { "Page file" } else { "Swap" }, format!("{} / {}", f::bytes_u(u), f::bytes_u(t)), None));
+        stats.push((
+            if cfg!(windows) { "Page file" } else { "Swap" },
+            format!("{} / {}", f::bytes_u(u), f::bytes_u(t)),
+            None,
+        ));
     }
     card(ui, |ui| stat_row(ui, &stats));
     ui.add_space(12.0);
@@ -419,13 +533,25 @@ fn memory(ui: &mut Ui, v: &View) {
 
     card(ui, |ui| {
         card_header(ui, Icon::Memory, "Memory in use", None);
-        v.chart(vec![Line { name: "In use", series: v.h.get("mem.used_pct"), color: p.series[0] }], Scale::Fixed(0.0, 100.0), 180.0, &pct_fmt).show(ui);
+        v.chart(
+            vec![Line { name: "In use", series: v.h.get("mem.used_pct"), color: p.series[0] }],
+            Scale::Fixed(0.0, 100.0),
+            180.0,
+            &pct_fmt,
+        )
+        .show(ui);
     });
     if v.h.get("mem.swap_pct").is_some() {
         ui.add_space(12.0);
         card(ui, |ui| {
             card_header(ui, Icon::Storage, if cfg!(windows) { "Page file usage" } else { "Swap usage" }, None);
-            v.chart(vec![Line { name: "Used", series: v.h.get("mem.swap_pct"), color: p.series[0] }], Scale::Fixed(0.0, 100.0), 120.0, &pct_fmt).show(ui);
+            v.chart(
+                vec![Line { name: "Used", series: v.h.get("mem.swap_pct"), color: p.series[0] }],
+                Scale::Fixed(0.0, 100.0),
+                120.0,
+                &pct_fmt,
+            )
+            .show(ui);
         });
     }
 }
@@ -436,7 +562,14 @@ fn gpu(ui: &mut Ui, v: &View) {
     let p = palette(ui);
     v.notes(ui, "gpu");
     if v.s.gpus.is_empty() {
-        card(ui, |ui| empty_state(ui, Icon::Gpu, "No graphics adapters found", "No GPU reported utilisation or sensor data on this system."));
+        card(ui, |ui| {
+            empty_state(
+                ui,
+                Icon::Gpu,
+                "No graphics adapters found",
+                "No GPU reported utilisation or sensor data on this system.",
+            )
+        });
         return;
     }
     for g in &v.s.gpus {
@@ -447,7 +580,8 @@ fn gpu(ui: &mut Ui, v: &View) {
                 None => format!("{} · {kind}", g.vendor.label()),
             };
             card_header(ui, Icon::Gpu, &g.name, Some(&trailing));
-            let mut stats = vec![("Utilization", g.usage.map(f::percent).unwrap_or("—".into()), g.usage.map(Level::for_load))];
+            let mut stats =
+                vec![("Utilization", g.usage.map(f::percent).unwrap_or("—".into()), g.usage.map(Level::for_load))];
             if let Some(t) = g.temperature {
                 stats.push(("Temperature", v.temp(t), Some(v.temp_level(t))));
             }
@@ -469,10 +603,24 @@ fn gpu(ui: &mut Ui, v: &View) {
             }
             stat_row(ui, &stats);
             ui.add_space(6.0);
-            v.chart(vec![Line { name: "Utilization", series: v.h.get(&format!("gpu.{}.usage", g.key)), color: p.series[0] }], Scale::Fixed(0.0, 100.0), 150.0, &pct_fmt).show(ui);
+            v.chart(
+                vec![Line {
+                    name: "Utilization",
+                    series: v.h.get(&format!("gpu.{}.usage", g.key)),
+                    color: p.series[0],
+                }],
+                Scale::Fixed(0.0, 100.0),
+                150.0,
+                &pct_fmt,
+            )
+            .show(ui);
             ui.add_space(10.0);
 
-            let engines: Vec<&(String, f32)> = g.engines.iter().filter(|e| !matches!(e.0.split_whitespace().next(), Some("Timer" | "Security"))).collect();
+            let engines: Vec<&(String, f32)> = g
+                .engines
+                .iter()
+                .filter(|e| !matches!(e.0.split_whitespace().next(), Some("Timer" | "Security")))
+                .collect();
             let mut blocks: Vec<Box<dyn Fn(&mut Ui) + '_>> = Vec::new();
             if !engines.is_empty() {
                 blocks.push(Box::new(|ui| {
@@ -501,7 +649,13 @@ fn gpu(ui: &mut Ui, v: &View) {
                     });
                     meter(ui, total.map(|t| u as f32 / t.max(1) as f32).unwrap_or(0.0), p.series[0], 6.0);
                 };
-                row(ui, if g.integrated { "Reserved (dedicated)" } else { "Dedicated" }, g.dedicated_used, g.dedicated_total, "Video memory that belongs to the GPU");
+                row(
+                    ui,
+                    if g.integrated { "Reserved (dedicated)" } else { "Dedicated" },
+                    g.dedicated_used,
+                    g.dedicated_total,
+                    "Video memory that belongs to the GPU",
+                );
                 row(ui, "Shared", g.shared_used, g.shared_total, "System memory the GPU borrows when needed");
                 if g.dedicated_used.is_none() && g.shared_used.is_none() {
                     ui.label(RichText::new("Not reported by this driver").color(p.text_muted));
@@ -513,7 +667,17 @@ fn gpu(ui: &mut Ui, v: &View) {
                 let unit = v.settings.temp_unit;
                 let t_fmt = move |x: f64| f::temp(x as f32, unit);
                 section_title(ui, "Temperature");
-                v.chart(vec![Line { name: "Temperature", series: v.h.get(&format!("gpu.{}.temp", g.key)), color: p.series[1] }], Scale::AutoPadded { min_span: 10.0 }, 110.0, &t_fmt).show(ui);
+                v.chart(
+                    vec![Line {
+                        name: "Temperature",
+                        series: v.h.get(&format!("gpu.{}.temp", g.key)),
+                        color: p.series[1],
+                    }],
+                    Scale::AutoPadded { min_span: 10.0 },
+                    110.0,
+                    &t_fmt,
+                )
+                .show(ui);
             }
             ui.add_space(4.0);
             ui.label(RichText::new(format!("Source: {}", g.source)).small().color(p.text_muted));
@@ -540,7 +704,10 @@ fn storage(ui: &mut Ui, v: &View) {
             let lvl = capacity_level(frac);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(format!("{} used", f::bytes_u(used))).strong().color(p.text));
-                ui.label(RichText::new(format!("of {} · {} free", f::bytes_u(d.total), f::bytes_u(d.free))).color(p.text_secondary));
+                ui.label(
+                    RichText::new(format!("of {} · {} free", f::bytes_u(d.total), f::bytes_u(d.free)))
+                        .color(p.text_secondary),
+                );
                 if lvl != Level::Normal {
                     level_pill(ui, lvl);
                 }
@@ -554,7 +721,8 @@ fn storage(ui: &mut Ui, v: &View) {
                     legend_item(ui, p.series[1], "Write", &f::byte_rate(d.write_bps.unwrap_or(0.0)));
                     if let Some(b) = d.busy_pct {
                         ui.add_space(12.0);
-                        ui.label(RichText::new(format!("Active {}", f::percent(b))).color(p.text_secondary)).on_hover_text("Share of time the volume was busy");
+                        ui.label(RichText::new(format!("Active {}", f::percent(b))).color(p.text_secondary))
+                            .on_hover_text("Share of time the volume was busy");
                     }
                 });
                 let mut c = v.chart(
@@ -569,7 +737,11 @@ fn storage(ui: &mut Ui, v: &View) {
                 c.fill = false;
                 c.show(ui);
             } else {
-                ui.label(RichText::new("Throughput is not available for this volume on this platform.").small().color(p.text_muted));
+                ui.label(
+                    RichText::new("Throughput is not available for this volume on this platform.")
+                        .small()
+                        .color(p.text_muted),
+                );
             }
         });
     });
@@ -598,7 +770,12 @@ fn storage(ui: &mut Ui, v: &View) {
                     stats.push(("Temperature", v.temp(t), Some(Level::for_temp(t, 65.0, 75.0))));
                 }
                 if let Some(u) = d.life_used_pct {
-                    let lvl = match u { x if x >= 100 => Level::Critical, x if x >= 90 => Level::High, x if x >= 75 => Level::Elevated, _ => Level::Normal };
+                    let lvl = match u {
+                        x if x >= 100 => Level::Critical,
+                        x if x >= 90 => Level::High,
+                        x if x >= 75 => Level::Elevated,
+                        _ => Level::Normal,
+                    };
                     stats.push(("Life used", format!("{u}%"), Some(lvl)));
                 }
                 if let Some(s) = d.spare_pct {
@@ -620,7 +797,10 @@ fn storage(ui: &mut Ui, v: &View) {
                     stats.push(("Media errors", f::count(n), (n > 0).then_some(Level::High)));
                 }
                 if stats.is_empty() {
-                    ui.label(RichText::new("This drive does not report health data without administrator rights.").color(p.text_muted));
+                    ui.label(
+                        RichText::new("This drive does not report health data without administrator rights.")
+                            .color(p.text_muted),
+                    );
                 } else {
                     stat_row(ui, &stats);
                 }
@@ -636,13 +816,16 @@ fn network(ui: &mut Ui, v: &View) {
     let rate = |x: f64| f::bit_rate(x);
     let (up, down): (Vec<&NetSample>, Vec<&NetSample>) = v.s.networks.iter().partition(|n| n.up);
     if v.s.networks.is_empty() {
-        card(ui, |ui| empty_state(ui, Icon::Network, "No network adapters found", "No physical network interfaces were detected."));
+        card(ui, |ui| {
+            empty_state(ui, Icon::Network, "No network adapters found", "No physical network interfaces were detected.")
+        });
         return;
     }
     for n in &up {
         card(ui, |ui| {
             card_header(ui, Icon::Network, &n.name, Some(&n.description));
-            let mut stats: Vec<(&str, String, Option<Level>)> = vec![("Download", f::bit_rate(n.rx_bps), None), ("Upload", f::bit_rate(n.tx_bps), None)];
+            let mut stats: Vec<(&str, String, Option<Level>)> =
+                vec![("Download", f::bit_rate(n.rx_bps), None), ("Upload", f::bit_rate(n.tx_bps), None)];
             if let Some(l) = n.link_bps {
                 stats.push(("Link speed", f::link_speed(l), None));
             }
@@ -697,13 +880,24 @@ fn network(ui: &mut Ui, v: &View) {
 fn search_box(ui: &mut Ui, text: &mut String, hint: &str, id: &str) {
     let p = palette(ui);
     ui.horizontal(|ui| {
-        let resp = egui::Frame::new().fill(p.surface).stroke(egui::Stroke::new(1.0, p.border)).corner_radius(8).inner_margin(egui::Margin::symmetric(10, 4)).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                icon_label(ui, Icon::Search, 14.0, p.text_muted);
-                ui.add(egui::TextEdit::singleline(text).id(egui::Id::unique(id)).hint_text(hint).frame(egui::Frame::NONE).desired_width(260.0))
-            })
-            .inner
-        });
+        let resp = egui::Frame::new()
+            .fill(p.surface)
+            .stroke(egui::Stroke::new(1.0, p.border))
+            .corner_radius(8)
+            .inner_margin(egui::Margin::symmetric(10, 4))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    icon_label(ui, Icon::Search, 14.0, p.text_muted);
+                    ui.add(
+                        egui::TextEdit::singleline(text)
+                            .id(egui::Id::unique(id))
+                            .hint_text(hint)
+                            .frame(egui::Frame::NONE)
+                            .desired_width(260.0),
+                    )
+                })
+                .inner
+            });
         if ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::F)) {
             resp.inner.request_focus();
         }
@@ -722,7 +916,9 @@ fn sensors(ui: &mut Ui, v: &View, filter: &mut String, reset_stats: &mut bool) {
     v.notes(ui, "cpu");
     search_box(ui, filter, "Filter sensors  (Ctrl+F)", "sensor-filter");
     let needle = filter.to_lowercase();
-    let matches = |s: &Sensor| needle.is_empty() || s.label.to_lowercase().contains(&needle) || s.group.to_lowercase().contains(&needle);
+    let matches = |s: &Sensor| {
+        needle.is_empty() || s.label.to_lowercase().contains(&needle) || s.group.to_lowercase().contains(&needle)
+    };
     let unit = v.settings.temp_unit;
     let cols = [
         col("Sensor", 3.0, 150.0, false),
@@ -743,50 +939,60 @@ fn sensors(ui: &mut Ui, v: &View, filter: &mut String, reset_stats: &mut bool) {
         any = true;
         let open = !needle.is_empty() || kind != SensorKind::Clock;
         card(ui, |ui| {
-            egui::CollapsingHeader::new(RichText::new(format!("{}  ·  {}", kind.label(), list.len())).strong().color(p.text))
-                .id_salt(("sensors", kind))
-                .default_open(open)
-                .show(ui, |ui| {
-                    let widths = column_widths(&cols, ui.available_width(), 12.0);
-                    table_row(ui, &widths, 26.0, 0, true, |ui, i| {
-                        ui.label(RichText::new(cols[i].title).small().color(p.text_muted));
-                    });
-                    for (row, s) in list.iter().enumerate() {
-                        let key = format!("sensor.{}", s.id);
-                        let level = (kind == SensorKind::Temperature).then(|| sensor_level(s, v.settings));
-                        let st = v.h.stats(&key);
-                        table_row(ui, &widths, 30.0, row, false, |ui, i| match i {
-                            0 => {
-                                ui.add(egui::Label::new(RichText::new(&s.label).color(p.text)).truncate());
-                            }
-                            1 => {
-                                ui.add(egui::Label::new(RichText::new(&s.group).color(p.text_secondary)).truncate());
-                            }
-                            2 => {
-                                ui.label(RichText::new(f::sensor_value(kind, s.value, unit)).strong().color(p.text));
-                                if let Some(l) = level.filter(|l| *l != Level::Normal) {
-                                    level_pill(ui, l);
-                                }
-                            }
-                            3 => {
-                                ui.label(RichText::new(st.map(|x| f::sensor_value(kind, x.min, unit)).unwrap_or_default()).color(p.text_secondary));
-                            }
-                            4 => {
-                                ui.label(RichText::new(st.map(|x| f::sensor_value(kind, x.max, unit)).unwrap_or_default()).color(p.text_secondary));
-                            }
-                            5 => {
-                                ui.label(RichText::new(st.map(|x| f::sensor_value(kind, x.avg(), unit)).unwrap_or_default()).color(p.text_secondary));
-                            }
-
-
-                            _ => {
-                                let color = level.map(|l| l.bar(p)).unwrap_or(p.series[0]);
-                                let w = ui.available_width().min(160.0);
-                                sparkline(ui, v.h.get(&key), vec2(w, 18.0), color, None, 60.0, v.now);
-                            }
-                        });
-                    }
+            egui::CollapsingHeader::new(
+                RichText::new(format!("{}  ·  {}", kind.label(), list.len())).strong().color(p.text),
+            )
+            .id_salt(("sensors", kind))
+            .default_open(open)
+            .show(ui, |ui| {
+                let widths = column_widths(&cols, ui.available_width(), 12.0);
+                table_row(ui, &widths, 26.0, 0, true, |ui, i| {
+                    ui.label(RichText::new(cols[i].title).small().color(p.text_muted));
                 });
+                for (row, s) in list.iter().enumerate() {
+                    let key = format!("sensor.{}", s.id);
+                    let level = (kind == SensorKind::Temperature).then(|| sensor_level(s, v.settings));
+                    let st = v.h.stats(&key);
+                    table_row(ui, &widths, 30.0, row, false, |ui, i| match i {
+                        0 => {
+                            ui.add(egui::Label::new(RichText::new(&s.label).color(p.text)).truncate());
+                        }
+                        1 => {
+                            ui.add(egui::Label::new(RichText::new(&s.group).color(p.text_secondary)).truncate());
+                        }
+                        2 => {
+                            ui.label(RichText::new(f::sensor_value(kind, s.value, unit)).strong().color(p.text));
+                            if let Some(l) = level.filter(|l| *l != Level::Normal) {
+                                level_pill(ui, l);
+                            }
+                        }
+                        3 => {
+                            ui.label(
+                                RichText::new(st.map(|x| f::sensor_value(kind, x.min, unit)).unwrap_or_default())
+                                    .color(p.text_secondary),
+                            );
+                        }
+                        4 => {
+                            ui.label(
+                                RichText::new(st.map(|x| f::sensor_value(kind, x.max, unit)).unwrap_or_default())
+                                    .color(p.text_secondary),
+                            );
+                        }
+                        5 => {
+                            ui.label(
+                                RichText::new(st.map(|x| f::sensor_value(kind, x.avg(), unit)).unwrap_or_default())
+                                    .color(p.text_secondary),
+                            );
+                        }
+
+                        _ => {
+                            let color = level.map(|l| l.bar(p)).unwrap_or(p.series[0]);
+                            let w = ui.available_width().min(160.0);
+                            sparkline(ui, v.h.get(&key), vec2(w, 18.0), color, None, 60.0, v.now);
+                        }
+                    });
+                }
+            });
         });
         ui.add_space(10.0);
     }
@@ -800,7 +1006,11 @@ fn sensors(ui: &mut Ui, v: &View, filter: &mut String, reset_stats: &mut bool) {
         });
     }
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Min, max and average are tracked since OpenTemp started or since the last reset.").small().color(p.text_muted));
+        ui.label(
+            RichText::new("Min, max and average are tracked since OpenTemp started or since the last reset.")
+                .small()
+                .color(p.text_muted),
+        );
         if ui.small_button("Reset min/max").clicked() {
             *reset_stats = true;
         }
@@ -824,12 +1034,13 @@ fn processes(ui: &mut Ui, v: &View, filter: &mut String, sort: &mut (ProcSort, b
     let p = palette(ui);
     search_box(ui, filter, "Filter by name or PID  (Ctrl+F)", "proc-filter");
     let needle = filter.to_lowercase();
-    let mut list: Vec<&ProcessSample> = v
-        .s
-        .processes
-        .iter()
-        .filter(|pr| needle.is_empty() || pr.name.to_lowercase().contains(&needle) || pr.pid.to_string().contains(&needle))
-        .collect();
+    let mut list: Vec<&ProcessSample> =
+        v.s.processes
+            .iter()
+            .filter(|pr| {
+                needle.is_empty() || pr.name.to_lowercase().contains(&needle) || pr.pid.to_string().contains(&needle)
+            })
+            .collect();
     let disk = |pr: &ProcessSample| pr.read_bps.unwrap_or(0.0) + pr.write_bps.unwrap_or(0.0);
     list.sort_by(|a, b| {
         let o = match sort.0 {
@@ -845,9 +1056,12 @@ fn processes(ui: &mut Ui, v: &View, filter: &mut String, sort: &mut (ProcSort, b
     let shown = list.len().min(200);
     let total = v.s.system.processes.unwrap_or(v.s.processes.len() as u32);
     ui.label(
-        RichText::new(format!("Showing {shown} of {} processes (the busiest by CPU and memory are tracked)", f::count(total as u64)))
-            .small()
-            .color(p.text_muted),
+        RichText::new(format!(
+            "Showing {shown} of {} processes (the busiest by CPU and memory are tracked)",
+            f::count(total as u64)
+        ))
+        .small()
+        .color(p.text_muted),
     );
     ui.add_space(6.0);
     let has_io = v.s.processes.iter().any(|p| p.read_bps.is_some());
@@ -870,7 +1084,8 @@ fn processes(ui: &mut Ui, v: &View, filter: &mut String, sort: &mut (ProcSort, b
             }
             let active = sort.0 == *key;
             let arrow = if active { if sort.1 { "  ▼" } else { "  ▲" } } else { "" };
-            let txt = RichText::new(format!("{}{arrow}", c.title)).small().color(if active { p.text } else { p.text_muted });
+            let txt =
+                RichText::new(format!("{}{arrow}", c.title)).small().color(if active { p.text } else { p.text_muted });
             if ui.add(egui::Button::new(txt).frame(false)).on_hover_text("Sort by this column").clicked() {
                 if active {
                     sort.1 = !sort.1;
@@ -900,7 +1115,11 @@ fn processes(ui: &mut Ui, v: &View, filter: &mut String, sort: &mut (ProcSort, b
                     ui.painter().rect_filled(r, 2.0, p.track);
                     let fw = r.width() * (pr.cpu_pct / 100.0).clamp(0.0, 1.0);
                     if fw > 0.5 {
-                        ui.painter().rect_filled(egui::Rect::from_min_size(r.min, vec2(fw.max(2.0), r.height())), 2.0, Level::for_load(pr.cpu_pct).bar(p));
+                        ui.painter().rect_filled(
+                            egui::Rect::from_min_size(r.min, vec2(fw.max(2.0), r.height())),
+                            2.0,
+                            Level::for_load(pr.cpu_pct).bar(p),
+                        );
                     }
                 }
                 3 => {
@@ -912,7 +1131,9 @@ fn processes(ui: &mut Ui, v: &View, filter: &mut String, sort: &mut (ProcSort, b
                 _ => {
                     if has_io {
                         let d = disk(pr);
-                        ui.label(RichText::new(if d > 0.0 { f::byte_rate(d) } else { "—".into() }).color(p.text_secondary));
+                        ui.label(
+                            RichText::new(if d > 0.0 { f::byte_rate(d) } else { "—".into() }).color(p.text_secondary),
+                        );
                     }
                 }
             });
@@ -950,7 +1171,11 @@ pub fn settings(ui: &mut Ui, app: &mut App) {
             ui.selectable_value(&mut s.theme, ThemeChoice::Dark, "Dark");
         });
         row(ui, "Interface size", "Scales all text and controls", &mut |ui| {
-            ui.add(egui::Slider::new(&mut s.ui_scale, 0.75..=2.0).step_by(0.05).custom_formatter(|v, _| format!("{:.0}%", v * 100.0)));
+            ui.add(
+                egui::Slider::new(&mut s.ui_scale, 0.75..=2.0)
+                    .step_by(0.05)
+                    .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
+            );
         });
         row(ui, "Temperature unit", "", &mut |ui| {
             ui.selectable_value(&mut s.temp_unit, TempUnit::Celsius, "Celsius (°C)");
@@ -965,11 +1190,14 @@ pub fn settings(ui: &mut Ui, app: &mut App) {
     card(ui, |ui| {
         card_header(ui, Icon::Sensors, "Sampling", None);
         row(ui, "Update interval", "Faster updates use slightly more CPU", &mut |ui| {
-            egui::ComboBox::from_id_salt("interval").selected_text(super::interval_label(s.interval_ms)).show_ui(ui, |ui| {
-                for ms in Settings::INTERVALS_MS {
-                    ui.selectable_value(&mut s.interval_ms, ms, super::interval_label(ms));
-                }
-            });
+            egui::ComboBox::from_id_salt("interval").selected_text(super::interval_label(s.interval_ms)).show_ui(
+                ui,
+                |ui| {
+                    for ms in Settings::INTERVALS_MS {
+                        ui.selectable_value(&mut s.interval_ms, ms, super::interval_label(ms));
+                    }
+                },
+            );
         });
         row(ui, "History length", "How far back the charts reach", &mut |ui| {
             egui::ComboBox::from_id_salt("history").selected_text(history_label(s.history_secs)).show_ui(ui, |ui| {
@@ -1013,13 +1241,17 @@ pub fn settings(ui: &mut Ui, app: &mut App) {
 
     card(ui, |ui| {
         card_header(ui, Icon::Info, "Keyboard shortcuts", None);
-        kv_grid(ui, "keys", &[
-            ("Ctrl+1 … Ctrl+9", "Switch page".into()),
-            ("Ctrl+P", "Pause or resume updates".into()),
-            ("Ctrl+F", "Filter sensors or processes".into()),
-            ("Ctrl+,", "Open settings".into()),
-            ("Tab / Enter", "Move between and activate controls".into()),
-        ]);
+        kv_grid(
+            ui,
+            "keys",
+            &[
+                ("Ctrl+1 … Ctrl+9", "Switch page".into()),
+                ("Ctrl+P", "Pause or resume updates".into()),
+                ("Ctrl+F", "Filter sensors or processes".into()),
+                ("Ctrl+,", "Open settings".into()),
+                ("Tab / Enter", "Move between and activate controls".into()),
+            ],
+        );
     });
     ui.add_space(12.0);
 
@@ -1038,7 +1270,13 @@ pub fn settings(ui: &mut Ui, app: &mut App) {
 }
 
 fn history_label(secs: u32) -> String {
-    if secs >= 3600 { format!("{} hour", secs / 3600) } else if secs >= 60 { format!("{} minutes", secs / 60) } else { format!("{secs} seconds") }
+    if secs >= 3600 {
+        format!("{} hour", secs / 3600)
+    } else if secs >= 60 {
+        format!("{} minutes", secs / 60)
+    } else {
+        format!("{secs} seconds")
+    }
 }
 
 fn data_sources() -> &'static str {
@@ -1050,4 +1288,3 @@ fn data_sources() -> &'static str {
         "Mach host statistics, sysctl, getifaddrs, getmntinfo and libproc."
     }
 }
-

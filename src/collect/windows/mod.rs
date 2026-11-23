@@ -133,7 +133,8 @@ impl Collector for WindowsCollector {
         if let (Some(b), Some(p)) = (base, total_of(&perf)) {
             s.cpu.avg_mhz = Some(b * p / 100.0);
         }
-        s.cpu.max_core_mhz = s.cpu.per_core.iter().filter_map(|c| c.mhz).fold(None, |m: Option<f64>, v| Some(m.map_or(v, |m| m.max(v))));
+        s.cpu.max_core_mhz =
+            s.cpu.per_core.iter().filter_map(|c| c.mhz).fold(None, |m: Option<f64>, v| Some(m.map_or(v, |m| m.max(v))));
 
         // ---- Sensors: ACPI thermal zones
         let mut acpi_plausible = Vec::new();
@@ -172,7 +173,9 @@ impl Collector for WindowsCollector {
                 let label = if lower.ends_with("_pkg") {
                     s.cpu.package_power_w = Some(watts as f32);
                     "CPU Package".to_string()
-                } else if let Some(core) = lower.split('_').find_map(|p| p.strip_prefix("core")).filter(|n| !n.is_empty()) {
+                } else if let Some(core) =
+                    lower.split('_').find_map(|p| p.strip_prefix("core")).filter(|n| !n.is_empty())
+                {
                     format!("Core {core}")
                 } else if lower.ends_with("_pp1") || lower.contains("gpu") {
                     "Graphics".to_string()

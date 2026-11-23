@@ -32,7 +32,9 @@ fn main() -> eframe::Result {
         match ui::parse_page(name) {
             Some(p) => start_page = Some(p),
             None => {
-                eprintln!("Unknown page {name:?}. Try overview, cpu, memory, gpu, storage, network, sensors, processes or settings.");
+                eprintln!(
+                    "Unknown page {name:?}. Try overview, cpu, memory, gpu, storage, network, sensors, processes or settings."
+                );
                 std::process::exit(2);
             }
         }

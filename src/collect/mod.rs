@@ -86,6 +86,7 @@ impl<K: Eq + Hash + Clone> RateTracker<K> {
     }
 
     /// Forget keys that were not seen in the latest pass.
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     pub fn retain(&mut self, keep: impl Fn(&K) -> bool) {
         self.last.retain(|k, _| keep(k));
     }
@@ -133,19 +134,14 @@ impl ProcessCpuTracker {
 /// UI never has to lay out thousands of rows per frame.
 pub fn trim_processes(list: &mut Vec<crate::model::ProcessSample>, n: usize) {
     list.sort_by(|a, b| {
-        b.cpu_pct
-            .partial_cmp(&a.cpu_pct)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then(b.memory.cmp(&a.memory))
+        b.cpu_pct.partial_cmp(&a.cpu_pct).unwrap_or(std::cmp::Ordering::Equal).then(b.memory.cmp(&a.memory))
     });
     // Keep the top CPU users plus the top memory users, de-duplicated.
     if list.len() > n {
         let mut by_mem: Vec<usize> = (0..list.len()).collect();
         by_mem.sort_by(|&a, &b| list[b].memory.cmp(&list[a].memory));
         let mut keep = vec![false; list.len()];
-        for i in 0..n / 2 {
-            keep[i] = true;
-        }
+        keep[..n / 2].fill(true);
         for &i in by_mem.iter().take(n / 2) {
             keep[i] = true;
         }
@@ -249,6 +245,7 @@ pub fn cpuid_info() -> (Option<String>, Option<String>, Vec<String>) {
 
 /// Pick the reading that best represents "the CPU temperature" from a list of
 /// sensors, using well-known driver labels first.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 pub fn pick_cpu_temperature(sensors: &[crate::model::Sensor]) -> Option<(f32, String)> {
     use crate::model::SensorKind;
     const PREFERRED: [(&str, &str); 8] = [

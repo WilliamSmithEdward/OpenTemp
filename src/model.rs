@@ -4,6 +4,9 @@
 //! the UI can tell "zero" apart from "unknown" and explain the gap instead of
 //! showing a misleading number.
 
+// macOS does not use every shared type yet (no GPU or sensor backends there).
+#![cfg_attr(target_os = "macos", allow(dead_code))]
+
 use serde::Serialize;
 
 /// Facts about the machine that do not change while the app runs.
@@ -97,11 +100,7 @@ pub struct MemorySample {
 
 impl MemorySample {
     pub fn used_pct(&self) -> f32 {
-        if self.total == 0 {
-            0.0
-        } else {
-            (self.used as f64 / self.total as f64 * 100.0) as f32
-        }
+        if self.total == 0 { 0.0 } else { (self.used as f64 / self.total as f64 * 100.0) as f32 }
     }
 }
 
@@ -170,6 +169,7 @@ pub struct GpuSample {
 
 impl GpuSample {
     /// Copy every reading that `self` lacks from `other`.
+    #[cfg_attr(not(windows), allow(dead_code))] // only Windows merges two GPU sources
     pub fn fill_from(&mut self, other: &GpuSample) {
         macro_rules! fill {
             ($($f:ident),*) => { $( if self.$f.is_none() { self.$f = other.$f.clone(); } )* };
@@ -283,15 +283,8 @@ impl SensorKind {
         }
     }
 
-    pub const ALL: [SensorKind; 7] = [
-        Self::Temperature,
-        Self::Power,
-        Self::Clock,
-        Self::Load,
-        Self::Fan,
-        Self::Voltage,
-        Self::Current,
-    ];
+    pub const ALL: [SensorKind; 7] =
+        [Self::Temperature, Self::Power, Self::Clock, Self::Load, Self::Fan, Self::Voltage, Self::Current];
 }
 
 /// A single named reading from a hardware sensor. Temperatures are always °C.

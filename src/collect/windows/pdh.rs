@@ -6,8 +6,8 @@
 
 use windows::Win32::System::Performance::{
     PDH_CSTATUS_NEW_DATA, PDH_CSTATUS_VALID_DATA, PDH_FMT, PDH_FMT_COUNTERVALUE, PDH_FMT_COUNTERVALUE_ITEM_W,
-    PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY, PDH_MORE_DATA, PdhAddEnglishCounterW, PdhCloseQuery,
-    PdhCollectQueryData, PdhGetFormattedCounterArrayW, PdhGetFormattedCounterValue, PdhOpenQueryW,
+    PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY, PDH_MORE_DATA, PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData,
+    PdhGetFormattedCounterArrayW, PdhGetFormattedCounterValue, PdhOpenQueryW,
 };
 use windows::core::{HSTRING, PCWSTR};
 
@@ -73,7 +73,7 @@ impl Counter {
         let status =
             unsafe { PdhGetFormattedCounterValue(self.0, PDH_FMT(PDH_FMT_DOUBLE.0 | PDH_FMT_NOCAP100), None, &mut v) };
         // SAFETY: we asked for PDH_FMT_DOUBLE, so the double member is the active one.
-        (status == 0 && valid(v.CStatus)).then(|| unsafe { v.Anonymous.doubleValue })
+        (status == 0 && valid(v.CStatus)).then_some(unsafe { v.Anonymous.doubleValue })
     }
 
     /// All instances of a wildcard counter as `(instance name, value)`.

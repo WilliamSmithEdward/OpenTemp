@@ -1,9 +1,7 @@
 //! Static machine facts: OS version, CPU topology and caches.
 
 use windows::Win32::Foundation::ERROR_SUCCESS;
-use windows::Win32::System::Registry::{
-    HKEY, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RRF_RT_REG_SZ, RegGetValueW,
-};
+use windows::Win32::System::Registry::{HKEY, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RRF_RT_REG_SZ, RegGetValueW};
 use windows::Win32::System::SystemInformation::{
     GetLogicalProcessorInformationEx, RelationAll, RelationCache, RelationProcessorCore, RelationProcessorPackage,
     SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX,
@@ -22,9 +20,7 @@ pub fn reg_string(root: HKEY, key: &str, value: &str) -> Option<String> {
     }
     let mut buf = vec![0u16; (size as usize).div_ceil(2)];
     // SAFETY: buffer has `size` bytes.
-    let r = unsafe {
-        RegGetValueW(root, &k, &v, RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr().cast()), Some(&mut size))
-    };
+    let r = unsafe { RegGetValueW(root, &k, &v, RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr().cast()), Some(&mut size)) };
     if r != ERROR_SUCCESS {
         return None;
     }
@@ -58,7 +54,11 @@ pub fn static_info() -> StaticInfo {
 
     StaticInfo {
         os_name: product,
-        os_version: if display.is_empty() { format!("Build {build}.{ubr}") } else { format!("{display} (build {build}.{ubr})") },
+        os_version: if display.is_empty() {
+            format!("Build {build}.{ubr}")
+        } else {
+            format!("{display} (build {build}.{ubr})")
+        },
         kernel: format!("NT {build}.{ubr}"),
         hostname,
         arch: std::env::consts::ARCH.to_string(),
@@ -73,9 +73,7 @@ fn cpu_info() -> CpuInfo {
     let model = brand
         .or_else(|| reg_string(HKEY_LOCAL_MACHINE, CPU0, "ProcessorNameString"))
         .unwrap_or_else(|| "Unknown processor".into());
-    let vendor = vendor
-        .or_else(|| reg_string(HKEY_LOCAL_MACHINE, CPU0, "VendorIdentifier"))
-        .unwrap_or_default();
+    let vendor = vendor.or_else(|| reg_string(HKEY_LOCAL_MACHINE, CPU0, "VendorIdentifier")).unwrap_or_default();
     let base_mhz = reg_dword(HKEY_LOCAL_MACHINE, CPU0, "~MHz").map(f64::from);
 
     let mut info = CpuInfo { model, vendor, base_mhz, features, ..Default::default() };
@@ -116,9 +114,7 @@ fn topology(info: &mut CpuInfo) {
                 info.physical_cores += 1;
                 // SAFETY: Processor is the active member for this relationship.
                 let p = unsafe { &rec.Anonymous.Processor };
-                let masks = unsafe {
-                    std::slice::from_raw_parts(p.GroupMask.as_ptr(), p.GroupCount.max(1) as usize)
-                };
+                let masks = unsafe { std::slice::from_raw_parts(p.GroupMask.as_ptr(), p.GroupCount.max(1) as usize) };
                 for g in masks {
                     for bit in 0..usize::BITS as usize {
                         if g.Mask & (1usize << bit) != 0 {
@@ -149,5 +145,6 @@ fn topology(info: &mut CpuInfo) {
     info.l3_bytes = (l3 > 0).then_some(l3);
     classes.sort_by_key(|c| c.0);
     let distinct = classes.iter().map(|c| c.1).collect::<std::collections::BTreeSet<_>>().len();
-    info.core_classes = if distinct > 1 { classes.iter().map(|c| Some(c.1)).collect() } else { vec![None; classes.len()] };
+    info.core_classes =
+        if distinct > 1 { classes.iter().map(|c| Some(c.1)).collect() } else { vec![None; classes.len()] };
 }

@@ -153,12 +153,13 @@ fn unescape_mount(s: &str) -> String {
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
-        if b[i] == b'\\' && i + 4 <= b.len() {
-            if let Some(v) = s.get(i + 1..i + 4).and_then(|o| u8::from_str_radix(o, 8).ok()) {
-                out.push(v);
-                i += 4;
-                continue;
-            }
+        if b[i] == b'\\'
+            && i + 4 <= b.len()
+            && let Some(v) = s.get(i + 1..i + 4).and_then(|o| u8::from_str_radix(o, 8).ok())
+        {
+            out.push(v);
+            i += 4;
+            continue;
         }
         out.push(b[i]);
         i += 1;
@@ -169,9 +170,28 @@ fn unescape_mount(s: &str) -> String {
 /// `(device, mount point, fs type)` for real, block-backed filesystems.
 pub fn parse_mounts(text: &str) -> Vec<(String, String, String)> {
     const PSEUDO: [&str; 22] = [
-        "proc", "sysfs", "tmpfs", "devtmpfs", "devpts", "cgroup", "cgroup2", "securityfs", "pstore", "debugfs",
-        "tracefs", "configfs", "fusectl", "mqueue", "hugetlbfs", "autofs", "binfmt_misc", "bpf", "overlay",
-        "squashfs", "efivarfs", "ramfs",
+        "proc",
+        "sysfs",
+        "tmpfs",
+        "devtmpfs",
+        "devpts",
+        "cgroup",
+        "cgroup2",
+        "securityfs",
+        "pstore",
+        "debugfs",
+        "tracefs",
+        "configfs",
+        "fusectl",
+        "mqueue",
+        "hugetlbfs",
+        "autofs",
+        "binfmt_misc",
+        "bpf",
+        "overlay",
+        "squashfs",
+        "efivarfs",
+        "ramfs",
     ];
     let mut seen = std::collections::HashSet::new();
     text.lines()
@@ -191,9 +211,7 @@ pub fn parse_mounts(text: &str) -> Vec<(String, String, String)> {
 }
 
 pub fn parse_os_release(text: &str) -> Option<String> {
-    text.lines()
-        .find_map(|l| l.strip_prefix("PRETTY_NAME="))
-        .map(|v| v.trim_matches('"').to_string())
+    text.lines().find_map(|l| l.strip_prefix("PRETTY_NAME=")).map(|v| v.trim_matches('"').to_string())
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -263,8 +281,12 @@ mod tests {
 
     #[test]
     fn proc_stat_usage() {
-        let a = parse_proc_stat("cpu  100 0 100 800 0 0 0 0 0 0\ncpu0 50 0 50 400 0 0 0 0 0 0\ncpu1 50 0 50 400 0 0 0 0 0 0\nctxt 42\n");
-        let b = parse_proc_stat("cpu  200 0 200 1400 200 0 0 0 0 0\ncpu0 150 0 50 400 0 0 0 0 0 0\ncpu1 50 0 150 1000 200 0 0 0 0 0\nctxt 50\n");
+        let a = parse_proc_stat(
+            "cpu  100 0 100 800 0 0 0 0 0 0\ncpu0 50 0 50 400 0 0 0 0 0 0\ncpu1 50 0 50 400 0 0 0 0 0 0\nctxt 42\n",
+        );
+        let b = parse_proc_stat(
+            "cpu  200 0 200 1400 200 0 0 0 0 0\ncpu0 150 0 50 400 0 0 0 0 0 0\ncpu1 50 0 150 1000 200 0 0 0 0 0\nctxt 50\n",
+        );
         assert_eq!(a.cores.len(), 2);
         assert_eq!(a.ctxt, Some(42));
         // total: busy +200 of +1000

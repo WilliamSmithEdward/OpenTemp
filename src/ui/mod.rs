@@ -104,16 +104,14 @@ const KEY_PAGE: &str = "page";
 impl App {
     fn new(cc: &eframe::CreationContext<'_>, start_page: Option<Page>) -> Self {
         theme::install(&cc.egui_ctx);
-        let settings: Settings = cc
-            .storage
-            .and_then(|s| eframe::get_value(s, KEY_SETTINGS))
-            .unwrap_or_default();
+        let settings: Settings = cc.storage.and_then(|s| eframe::get_value(s, KEY_SETTINGS)).unwrap_or_default();
         let settings = settings.sanitized();
         let page = start_page.or_else(|| cc.storage.and_then(|s| eframe::get_value(s, KEY_PAGE))).unwrap_or_default();
         let ctx = cc.egui_ctx.clone();
-        let sampler = Sampler::start(Duration::from_millis(settings.interval_ms), settings.history_secs as f64, move || {
-            ctx.request_repaint()
-        });
+        let sampler =
+            Sampler::start(Duration::from_millis(settings.interval_ms), settings.history_secs as f64, move || {
+                ctx.request_repaint()
+            });
         let mut app = Self {
             sampler,
             applied: settings.clone(),
@@ -221,7 +219,8 @@ impl App {
                         ui.painter().rect_stroke(rect, 7.0, Stroke::new(2.0, p.accent), egui::StrokeKind::Inside);
                     }
                     let color = if selected { p.accent } else { p.text_secondary };
-                    let icon_rect = egui::Rect::from_center_size(rect.left_center() + vec2(22.0, 0.0), vec2(17.0, 17.0));
+                    let icon_rect =
+                        egui::Rect::from_center_size(rect.left_center() + vec2(22.0, 0.0), vec2(17.0, 17.0));
                     paint_icon(ui.painter(), icon_rect, page.icon(), color);
                     ui.painter().text(
                         rect.left_center() + vec2(42.0, 0.0),
@@ -245,14 +244,15 @@ impl App {
             ui.allocate_ui_with_layout(vec2(title_w, 48.0), Layout::top_down(Align::Min), |ui| {
                 ui.set_max_width(title_w);
                 ui.label(RichText::new(self.page.title()).size(22.0).strong().color(p.text));
-                ui.add(egui::Label::new(RichText::new(subtitle).color(p.text_muted)).truncate()).on_hover_text(subtitle);
+                ui.add(egui::Label::new(RichText::new(subtitle).color(p.text_muted)).truncate())
+                    .on_hover_text(subtitle);
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let paused = self.sampler.paused();
                 let (icon, label) = if paused { (Icon::Play, "Resume") } else { (Icon::Pause, "Pause") };
-                let btn = ui
-                    .add(egui::Button::new(format!("      {label}")).min_size(vec2(96.0, 30.0)))
-                    .on_hover_text(if paused { "Resume live updates (Ctrl+P)" } else { "Freeze the readings (Ctrl+P)" });
+                let btn = ui.add(egui::Button::new(format!("      {label}")).min_size(vec2(96.0, 30.0))).on_hover_text(
+                    if paused { "Resume live updates (Ctrl+P)" } else { "Freeze the readings (Ctrl+P)" },
+                );
                 let ir = egui::Rect::from_center_size(btn.rect.left_center() + vec2(18.0, 0.0), vec2(12.0, 12.0));
                 paint_icon(ui.painter(), ir, icon, p.text);
                 if btn.clicked() {
@@ -287,7 +287,9 @@ impl App {
         drop(g);
         egui::Panel::bottom("status")
             .exact_size(28.0)
-            .frame(Frame::new().fill(p.sidebar).inner_margin(Margin::symmetric(14, 4)).stroke(Stroke::new(1.0, p.border)))
+            .frame(
+                Frame::new().fill(p.sidebar).inner_margin(Margin::symmetric(14, 4)).stroke(Stroke::new(1.0, p.border)),
+            )
             .show(ui, |ui| {
                 ui.horizontal_centered(|ui| {
                     let paused = self.sampler.paused();
@@ -300,14 +302,22 @@ impl App {
                     ui.painter().circle_filled(r.center(), 4.0, dot);
                     ui.label(RichText::new(text).small().color(p.text_secondary));
                     ui.label(RichText::new("·").small().color(p.text_muted));
-                    ui.label(RichText::new(format!("sample took {:.1} ms", cost.as_secs_f64() * 1000.0)).small().color(p.text_muted))
-                        .on_hover_text("Time spent reading all sensors in the last pass");
+                    ui.label(
+                        RichText::new(format!("sample took {:.1} ms", cost.as_secs_f64() * 1000.0))
+                            .small()
+                            .color(p.text_muted),
+                    )
+                    .on_hover_text("Time spent reading all sensors in the last pass");
                     ui.label(RichText::new("·").small().color(p.text_muted));
-                    ui.label(RichText::new(format!("{} samples", crate::format::count(samples))).small().color(p.text_muted));
+                    ui.label(
+                        RichText::new(format!("{} samples", crate::format::count(samples))).small().color(p.text_muted),
+                    );
                     if self.settings.log_enabled {
                         ui.label(RichText::new("·").small().color(p.text_muted));
                         match &log_error {
-                            Some(e) => ui.label(RichText::new(format!("CSV log failed: {e}")).small().color(p.critical)),
+                            Some(e) => {
+                                ui.label(RichText::new(format!("CSV log failed: {e}")).small().color(p.critical))
+                            }
                             None => ui.label(RichText::new("Logging to CSV").small().color(p.text_secondary)),
                         };
                     }
@@ -377,17 +387,33 @@ impl eframe::App for App {
                         drop(guard);
                         pages::settings(ui, self);
                     } else if let Some(snap) = latest {
-                        let view = pages::View { s: &snap, info: &info, h: &guard.history, settings: &self.settings, now: snap.t };
-                        if let Some(next) = pages::show(ui, self.page, &view, &mut pages::PageState {
-                            proc_filter: &mut self.proc_filter,
-                            proc_sort: &mut self.proc_sort,
-                            sensor_filter: &mut self.sensor_filter,
-                            reset_stats: &mut self.reset_stats,
-                        }) {
+                        let view = pages::View {
+                            s: &snap,
+                            info: &info,
+                            h: &guard.history,
+                            settings: &self.settings,
+                            now: snap.t,
+                        };
+                        if let Some(next) = pages::show(
+                            ui,
+                            self.page,
+                            &view,
+                            &mut pages::PageState {
+                                proc_filter: &mut self.proc_filter,
+                                proc_sort: &mut self.proc_sort,
+                                sensor_filter: &mut self.sensor_filter,
+                                reset_stats: &mut self.reset_stats,
+                            },
+                        ) {
                             self.page = next;
                         }
                     } else {
-                        widgets::empty_state(ui, Icon::Logo, "Reading sensors…", "The first sample is being collected.");
+                        widgets::empty_state(
+                            ui,
+                            Icon::Logo,
+                            "Reading sensors…",
+                            "The first sample is being collected.",
+                        );
                     }
                     ui.add_space(24.0);
                 });
@@ -433,10 +459,14 @@ fn window_icon() -> egui::IconData {
             if inside_round_rect(x, y, 0.0, 0.0, 1.0, 1.0, 0.24) {
                 c = Some(blue);
             }
-            if inside_round_rect(x, y, 0.27, 0.16, 0.43, 0.62, 0.08) || (x - 0.35).powi(2) + (y - 0.7).powi(2) <= 0.14f32.powi(2) {
+            if inside_round_rect(x, y, 0.27, 0.16, 0.43, 0.62, 0.08)
+                || (x - 0.35).powi(2) + (y - 0.7).powi(2) <= 0.14f32.powi(2)
+            {
                 c = Some(white);
             }
-            if (x - 0.35).powi(2) + (y - 0.7).powi(2) <= 0.08f32.powi(2) || (x >= 0.32 && x <= 0.38 && y >= 0.36 && y <= 0.66) {
+            if (x - 0.35).powi(2) + (y - 0.7).powi(2) <= 0.08f32.powi(2)
+                || ((0.32..=0.38).contains(&x) && (0.36..=0.66).contains(&y))
+            {
                 c = Some(orange);
             }
             if pulse.windows(2).any(|w| seg_dist(x, y, w[0], w[1]) <= 0.035) {

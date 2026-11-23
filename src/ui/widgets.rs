@@ -2,8 +2,8 @@
 //! and the vector icon set (drawn, so they stay crisp at any DPI).
 
 use egui::{
-    Align2, Color32, CornerRadius, CursorIcon, FontId, Frame, Margin, Pos2, Rect, Response, RichText, Sense, Shape, Stroke,
-    StrokeKind, Ui, Vec2, pos2, vec2,
+    Align2, Color32, CornerRadius, CursorIcon, FontId, Frame, Margin, Pos2, Rect, Response, RichText, Sense, Shape,
+    Stroke, StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
 use super::theme::{Level, Palette, palette};
@@ -18,16 +18,22 @@ pub fn card_frame(p: &Palette) -> Frame {
 
 pub fn card<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
     let p = palette(ui);
-    card_frame(p).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        add(ui)
-    })
-    .inner
+    card_frame(p)
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            add(ui)
+        })
+        .inner
 }
 
 /// A card that acts as a link to a detail page: hover highlight, pointer cursor,
 /// keyboard focusable, and announced as a button to screen readers.
-pub fn link_card(ui: &mut Ui, id: impl std::hash::Hash + std::fmt::Debug, label: &str, add: impl FnOnce(&mut Ui)) -> Response {
+pub fn link_card(
+    ui: &mut Ui,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    label: &str,
+    add: impl FnOnce(&mut Ui),
+) -> Response {
     let p = palette(ui);
     let id = ui.scope_id().with(id);
     let hovered = ui.ctx().read_response(id).is_some_and(|r| r.hovered() || r.has_focus());
@@ -169,10 +175,12 @@ pub fn ring_gauge(ui: &mut Ui, frac: Option<f32>, diameter: f32, color: Color32,
     let sweep = std::f32::consts::PI * 1.5;
     let arc = |from: f32, to: f32| -> Vec<Pos2> {
         let n = 48;
-        (0..=n).map(|i| {
-            let a = from + (to - from) * i as f32 / n as f32;
-            c + vec2(a.cos(), a.sin()) * radius
-        }).collect()
+        (0..=n)
+            .map(|i| {
+                let a = from + (to - from) * i as f32 / n as f32;
+                c + vec2(a.cos(), a.sin()) * radius
+            })
+            .collect()
     };
     painter.add(Shape::line(arc(start, start + sweep), Stroke::new(stroke_w, p.track)));
     if let Some(f) = frac {
@@ -182,7 +190,13 @@ pub fn ring_gauge(ui: &mut Ui, frac: Option<f32>, diameter: f32, color: Color32,
         }
     }
     painter.text(c - vec2(0.0, 4.0), Align2::CENTER_CENTER, center, FontId::proportional(diameter * 0.2), p.text);
-    painter.text(c + vec2(0.0, diameter * 0.17), Align2::CENTER_CENTER, caption, FontId::proportional(11.0), p.text_muted);
+    painter.text(
+        c + vec2(0.0, diameter * 0.17),
+        Align2::CENTER_CENTER,
+        caption,
+        FontId::proportional(11.0),
+        p.text_muted,
+    );
 }
 
 pub fn info_banner(ui: &mut Ui, text: &str) {
@@ -283,7 +297,9 @@ pub fn paint_icon(painter: &egui::Painter, rect: Rect, icon: Icon, color: Color3
     let c = rect.center();
     let w = (s / 12.0).max(1.2);
     let stroke = Stroke::new(w, color);
-    let r = |x0: f32, y0: f32, x1: f32, y1: f32| Rect::from_min_max(rect.min + vec2(x0 * s, y0 * s), rect.min + vec2(x1 * s, y1 * s));
+    let r = |x0: f32, y0: f32, x1: f32, y1: f32| {
+        Rect::from_min_max(rect.min + vec2(x0 * s, y0 * s), rect.min + vec2(x1 * s, y1 * s))
+    };
     let pt = |x: f32, y: f32| rect.min + vec2(x * s, y * s);
     match icon {
         Icon::Overview => {
@@ -363,7 +379,11 @@ pub fn paint_icon(painter: &egui::Painter, rect: Rect, icon: Icon, color: Color3
             painter.rect_filled(r(0.6, 0.18, 0.76, 0.82), s * 0.03, color);
         }
         Icon::Play => {
-            painter.add(Shape::convex_polygon(vec![pt(0.26, 0.16), pt(0.84, 0.5), pt(0.26, 0.84)], color, Stroke::NONE));
+            painter.add(Shape::convex_polygon(
+                vec![pt(0.26, 0.16), pt(0.84, 0.5), pt(0.26, 0.84)],
+                color,
+                Stroke::NONE,
+            ));
         }
         Icon::Info => {
             painter.circle_stroke(c, s * 0.42, stroke);
@@ -417,7 +437,14 @@ pub fn column_widths(cols: &[Col], avail: f32, gap: f32) -> Vec<f32> {
 
 /// A full-width table row. `cell` draws column `i` into a UI of the right width.
 /// Returns the row's response so callers can add hover or click behaviour.
-pub fn table_row(ui: &mut Ui, widths: &[f32], height: f32, index: usize, header: bool, mut cell: impl FnMut(&mut Ui, usize)) -> Response {
+pub fn table_row(
+    ui: &mut Ui,
+    widths: &[f32],
+    height: f32,
+    index: usize,
+    header: bool,
+    mut cell: impl FnMut(&mut Ui, usize),
+) -> Response {
     let p = palette(ui);
     let gap = 12.0;
     let total: f32 = widths.iter().sum::<f32>() + gap * (widths.len().saturating_sub(1)) as f32;

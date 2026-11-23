@@ -118,8 +118,11 @@ impl LinuxCollector {
                     _ => continue,
                 };
                 let Some(raw) = read_num::<f64>(&f) else { continue };
-                let label = read(dir.join(format!("{base}_label"))).map(|s| s.trim().to_string()).unwrap_or_else(|| base.to_string());
-                let lim = |s: &str| read_num::<f64>(dir.join(format!("{base}_{s}"))).map(|v| v / scale).filter(|v| *v > 0.0);
+                let label = read(dir.join(format!("{base}_label")))
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_else(|| base.to_string());
+                let lim =
+                    |s: &str| read_num::<f64>(dir.join(format!("{base}_{s}"))).map(|v| v / scale).filter(|v| *v > 0.0);
                 out.push(Sensor {
                     id: format!("{hw}.{base}"),
                     group: chip.clone(),
@@ -138,19 +141,43 @@ impl LinuxCollector {
                         continue;
                     }
                     if let Some(raw) = read_num::<f64>(&f) {
-                        let label = read(dir.join(format!("{base}_label"))).map(|s| s.trim().to_string()).unwrap_or_else(|| base.to_string());
-                        out.push(Sensor { id: format!("{hw}.{base}"), group: chip.clone(), label, kind: SensorKind::Power, value: raw / 1e6, high: None, critical: None });
+                        let label = read(dir.join(format!("{base}_label")))
+                            .map(|s| s.trim().to_string())
+                            .unwrap_or_else(|| base.to_string());
+                        out.push(Sensor {
+                            id: format!("{hw}.{base}"),
+                            group: chip.clone(),
+                            label,
+                            kind: SensorKind::Power,
+                            value: raw / 1e6,
+                            high: None,
+                            critical: None,
+                        });
                     }
                 }
             }
         }
         if !out.iter().any(|s| s.kind == SensorKind::Temperature) {
-            for z in dir_entries("/sys/class/thermal").into_iter().filter(|p| p.to_string_lossy().contains("thermal_zone")) {
+            for z in
+                dir_entries("/sys/class/thermal").into_iter().filter(|p| p.to_string_lossy().contains("thermal_zone"))
+            {
                 if let Some(t) = read_num::<f64>(z.join("temp")) {
                     let ty = read(z.join("type")).map(|s| s.trim().to_string()).unwrap_or_default();
                     let id = z.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                    let group = if ty.contains("cpu") || ty == "x86_pkg_temp" { "cpu_thermal".to_string() } else { "acpitz".to_string() };
-                    out.push(Sensor { id, group, label: ty, kind: SensorKind::Temperature, value: t / 1000.0, high: None, critical: None });
+                    let group = if ty.contains("cpu") || ty == "x86_pkg_temp" {
+                        "cpu_thermal".to_string()
+                    } else {
+                        "acpitz".to_string()
+                    };
+                    out.push(Sensor {
+                        id,
+                        group,
+                        label: ty,
+                        kind: SensorKind::Temperature,
+                        value: t / 1000.0,
+                        high: None,
+                        critical: None,
+                    });
                 }
             }
         }
@@ -165,14 +192,18 @@ impl LinuxCollector {
                 continue;
             }
             let dev = card.join("device");
-            let vendor_id = read(dev.join("vendor")).and_then(|v| u32::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()).unwrap_or(0);
+            let vendor_id = read(dev.join("vendor"))
+                .and_then(|v| u32::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok())
+                .unwrap_or(0);
             let vendor = GpuVendor::from_pci_id(vendor_id);
             if vendor == GpuVendor::Nvidia {
                 continue; // NVML covers NVIDIA.
             }
             let mut g = GpuSample {
                 key: name.clone(),
-                name: read(dev.join("product_name")).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+                name: read(dev.join("product_name"))
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
                     .unwrap_or_else(|| format!("{} GPU ({name})", vendor.label())),
                 vendor,
                 source: "sysfs".into(),
@@ -200,11 +231,15 @@ impl LinuxCollector {
             }
             if let Some(hw) = dir_entries(dev.join("hwmon")).into_iter().next() {
                 g.temperature = read_num::<f32>(hw.join("temp1_input")).map(|v| v / 1000.0);
-                g.power_w = read_num::<f32>(hw.join("power1_average")).or_else(|| read_num(hw.join("power1_input"))).map(|v| v / 1e6);
+                g.power_w = read_num::<f32>(hw.join("power1_average"))
+                    .or_else(|| read_num(hw.join("power1_input")))
+                    .map(|v| v / 1e6);
                 g.power_limit_w = read_num::<f32>(hw.join("power1_cap")).map(|v| v / 1e6);
                 g.fan_rpm = read_num(hw.join("fan1_input"));
             }
-            g.driver = fs::read_link(dev.join("driver")).ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()));
+            g.driver = fs::read_link(dev.join("driver"))
+                .ok()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()));
             out.push(g);
         }
         out
@@ -312,16 +347,17 @@ impl LinuxCollector {
             .into_iter()
             .find(|p| read(p.join("type")).is_some_and(|t| t.trim() == "Battery"))?;
         let status = read(bat.join("status")).unwrap_or_default();
-        let on_ac = dir_entries("/sys/class/power_supply")
-            .iter()
-            .any(|p| read(p.join("type")).is_some_and(|t| t.trim() == "Mains") && read_num::<u8>(p.join("online")) == Some(1));
+        let on_ac = dir_entries("/sys/class/power_supply").iter().any(|p| {
+            read(p.join("type")).is_some_and(|t| t.trim() == "Mains") && read_num::<u8>(p.join("online")) == Some(1)
+        });
         let power = read_num::<f32>(bat.join("power_now")).map(|v| v / 1e6).or_else(|| {
             let c = read_num::<f32>(bat.join("current_now"))?;
             let v = read_num::<f32>(bat.join("voltage_now"))?;
             Some(c * v / 1e12)
         });
         let full = read_num::<f32>(bat.join("energy_full")).or_else(|| read_num(bat.join("charge_full")));
-        let design = read_num::<f32>(bat.join("energy_full_design")).or_else(|| read_num(bat.join("charge_full_design")));
+        let design =
+            read_num::<f32>(bat.join("energy_full_design")).or_else(|| read_num(bat.join("charge_full_design")));
         Some(Battery {
             percent: read_num(bat.join("capacity")),
             charging: status.trim() == "Charging",
@@ -348,7 +384,9 @@ impl Collector for LinuxCollector {
         // CPU
         let stat = parse_proc_stat(&read("/proc/stat").unwrap_or_default());
         let mut freqs: Vec<Option<f64>> = (0..stat.cores.len())
-            .map(|i| read_num::<f64>(format!("/sys/devices/system/cpu/cpu{i}/cpufreq/scaling_cur_freq")).map(|k| k / 1000.0))
+            .map(|i| {
+                read_num::<f64>(format!("/sys/devices/system/cpu/cpu{i}/cpufreq/scaling_cur_freq")).map(|k| k / 1000.0)
+            })
             .collect();
         if freqs.iter().all(|f| f.is_none()) {
             let ci = parse_cpuinfo(&read("/proc/cpuinfo").unwrap_or_default());
@@ -385,7 +423,8 @@ impl Collector for LinuxCollector {
             s.cpu.load_avg = Some(l);
             s.system.threads = total;
         }
-        s.system.uptime_secs = read("/proc/uptime").and_then(|t| t.split_whitespace().next()?.parse::<f64>().ok()).map(|v| v as u64);
+        s.system.uptime_secs =
+            read("/proc/uptime").and_then(|t| t.split_whitespace().next()?.parse::<f64>().ok()).map(|v| v as u64);
 
         // Memory
         let m = parse_meminfo(&read("/proc/meminfo").unwrap_or_default());
@@ -405,9 +444,15 @@ impl Collector for LinuxCollector {
             s.cpu.temperature = Some(t);
             s.cpu.temperature_source = Some(src);
         } else {
-            s.notes.push(Note::new("cpu", "No CPU temperature sensor found. Load the k10temp or coretemp module, or run sensors-detect."));
+            s.notes.push(Note::new(
+                "cpu",
+                "No CPU temperature sensor found. Load the k10temp or coretemp module, or run sensors-detect.",
+            ));
         }
-        if let Some(p) = s.sensors.iter().find(|x| x.kind == SensorKind::Power && (x.group == "zenpower" || x.label.contains("SVI2_P_Core") || x.label.contains("CPU"))) {
+        if let Some(p) = s.sensors.iter().find(|x| {
+            x.kind == SensorKind::Power
+                && (x.group == "zenpower" || x.label.contains("SVI2_P_Core") || x.label.contains("CPU"))
+        }) {
             s.cpu.package_power_w = Some(p.value as f32);
         }
         s.gpus = self.gpus();
