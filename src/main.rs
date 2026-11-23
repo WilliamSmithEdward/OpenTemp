@@ -14,6 +14,11 @@ const APP_NAME: &str = "OpenTemp";
 
 fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // Release builds use the GUI subsystem; reattach to the terminal for text output.
+    #[cfg(windows)]
+    if !args.is_empty() {
+        attach_console();
+    }
     if args.iter().any(|a| a == "--help" || a == "-h") {
         print_help();
         return Ok(());
@@ -56,8 +61,6 @@ fn print_help() {
 /// Diagnostic mode: two samples one second apart (so rates are filled in),
 /// printed as JSON. Useful for bug reports and scripting.
 fn dump_json() {
-    #[cfg(windows)]
-    attach_console();
     let mut c = collect::platform();
     let _ = c.sample();
     std::thread::sleep(Duration::from_secs(1));
